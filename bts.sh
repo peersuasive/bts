@@ -170,7 +170,8 @@ NO_COLORS=0
 
 oldIFS=$IFS
 home="$( dirname "$(readlink -f "$0")" )"
-results_base="$home/results"
+here="$(readlink -f "$PWD")"
+results_base="$here/results"
 
 ## ------ functions
 declare -a tests=()
@@ -429,5 +430,5 @@ done
 !((NO_COLORS)) && _set_colors
 set -- "${ARGS[@]}"
 
-test_list="${@:-tests/[0-9]*.sh}"
+test_list="${@:-$here/tests/[0-9]*.sh}"
 run
