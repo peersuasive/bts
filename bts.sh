@@ -183,7 +183,7 @@ _get_test() {
     tests_i=()
     tests_ext=()
     ## evaluate script first
-    ( source "$t" 1>/dev/null) || return 1
+    ( source "$t" 1>/dev/null ) || return 1
     local xxx
     xxx=$(cat <<EOS|bash
     shopt -s extdebug
@@ -382,9 +382,9 @@ run() {
             ff="${BASH_REMATCH[1]}"
             t="${BASH_REMATCH[2]}"
         }
-        ff="$(readlink -f "$ff")"; ! [[ -f "$ff" ]] && echo -e "${INV}[WARNING] Can't find test '$ff'!${RST}" && continue
+        ff="$(readlink -f "$ff")"; ! [[ -f "$ff" ]] && echo -e "${INV}[WARNING] Can't find test class '$ff'!${RST}" && continue
         ! _get_test "$ff" && echo "Error: Failed to parse test class '$ff'" && continue
-        [[ -n "$t" && -z "${tests_i["$t"]}" ]] && echo -e "${INV}[WARNING] Can't find test '$t' in '$ff'!${RST}" && continue
+        [[ -n "$t" && -z "${tests_i["$t"]}" ]] && echo -e "${INV}[WARNING] Can't find test '$t' in class '$ff'!${RST}" && continue
 
         declare int_tests=()
         ((LIST_ONLY)) && {
