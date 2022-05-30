@@ -1,0 +1,64 @@
+= BashTestSuite: a very straightforward test suite for bash
+
+.Usage
+----
+Usage: bts.sh [-h] [OPTIONS] [test...]
+
+Usage notes:
+    Tests are expected to be found in folder 'tests/',
+    named as '[NN].<test>.sh'; ex.: tests/00.bts_tests.sh.
+
+    Results are stored in 'results/[TEST CLASS]/[TEST NAME].log'
+    Tests classes are to be stored in 'tests/[0-9]*.test_name.sh'
+    Tests starting with underscore (_) or arobase (@) are ignored.
+    Tests are executed in order.
+
+Options:
+    -h|--help               show this message and exit
+    -v|--verbose            show output in case of failure only (default)
+    -vv|--very-verbose      always show output
+    -q|--quiet              don't show output, even in case of failure
+    -qq|--very-quiet
+    -s|--silent             don't show any output at all
+    -l|--list|--list-tests  list available test without executing
+
+Utils (functions):
+    setup    run before each test
+    teardown run after each test
+    preset   run before first test
+    reset    run after last test
+    fail     exit test immediatly with a failure (FAIL) message
+    ok       exit test immediatly with a success (OK) message
+    todo     exit test immediatly with a TODO message; this is accounted as a failure but notified as an unimplemented test also
+    assert [true|false|equals|same] <expression>
+        true    assert evaluation is true
+        false   assert evaluation if false
+        equals  assert left string equals expected right string
+        same    assert left string or file contents equals expected right string or file contents
+    @should_fail <expression>
+                assert next evaluation fails as expected
+Debug/trace:
+    trace    display message in output (not logged)
+    dbg      display message in output (logged)
+----
+
+
+.Example
+----
+should_fail() {
+    @should_fail 'return 1'
+    ( trap - ERR; ! @should_fail 'return 0' )
+    ( trap - ERR; ! @should_fail @should_fail 'return 1' )
+    @should_fail @should_fail 'return 0'
+    @should_fail @should_fail @should_fail 'return 1'
+    return 0
+}
+
+assert__assert_true() {
+    @should_fail assert 'true' 'false'
+    assert 'true' 'true'
+    assert 'true' 'return 0'
+    assert true [[ 1 == 1 ]]
+    @should_fail assert true [[ 1 == 2 ]]
+}
+----
