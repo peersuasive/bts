@@ -377,7 +377,7 @@ run() {
     local f
     for f in ${test_list}; do
         local ff="$f"
-        local t
+        local t=''
         [[ "$f" =~ ^([^:]+):(.+)$ ]] && {
             ff="${BASH_REMATCH[1]}"
             t="${BASH_REMATCH[2]}"
