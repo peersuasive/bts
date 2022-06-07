@@ -40,8 +40,8 @@ Utils (functions):
     @should_fail <expression>
                 assert next evaluation fails as expected
 Debug/trace:
-    trace    display message in output (not logged)
-    dbg      display message in output (logged)
+    trace    display message in output (logged)
+    dbg      display a dbg message in output (logged)
 EOU
 }
 
@@ -96,7 +96,7 @@ dbg() {
     echo -e "[DBG] $@" >&2
 }
 trace() {
-    echo "$@" >&7
+    echo "$@" >&2
 }
 
 export SHOULD=0
@@ -246,9 +246,6 @@ _run_tests() {
             exec 1>>$log_file
             exec 2>>$log_file
 
-            log_traces=$(mktemp -uq -p /tmp -t nris.XXXXXXXXXX)
-            exec 7>>$log_traces
-
             echo "--- [$t] ----"
 
             set -o pipefail
@@ -256,7 +253,7 @@ _run_tests() {
             set -o functrace
             _trap_exit() {
                 local retval=$?
-                \rm -f "$tmp_sh" "$log_traces"
+                \rm -f "$tmp_sh"
                 exit $retval
             }
             trap '_trap_exit' EXIT
@@ -326,7 +323,6 @@ _run_tests() {
                 }
             }
             echo "--- [$( ((rr)) && echo $FAILED || echo $OK)]: $t --------"
-            [[ -s "$log_traces" ]] && cat "$log_traces"
             exec 1>&8
             exec 2>&9
             exec 7>&-
