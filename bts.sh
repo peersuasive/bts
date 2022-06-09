@@ -61,6 +61,7 @@ _set_colors() {
 }
 OK=OK
 FAILED=FAILED
+FATAL=FATAL
 TODO=TODO
 MSG_STATUS=
 
@@ -86,6 +87,10 @@ fail() {
 ok() {
     [[ -n "$1" ]] && echo "[$OK] $@"
     return $r_ok
+}
+fatal() {
+    [[ -n "$1" ]] && echo "[$FATAL] $@" >&2
+    return $r_fatal
 }
 todo() {
     echo -ne "${YELLOW}[$TODO]${@+ ${BOLD}${CYAN}$@}${RST}" >&2
