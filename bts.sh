@@ -120,11 +120,8 @@ assert() {
     local is_not=$( ((NOT)) && echo 'NOT ' )
     local a="$1"; shift
     local res1 res2 r
-    case "$a" in
-        TRUE|true) a=TRUE;;
-        FALSE|false) a=FALSE;;
-        EQUALS|equals) a=EQUALS;;
-        SAME|same) a=SAME;;
+    case "${a^^}" in
+        TRUE|FALSE|EQUALS|SAME|EXISTS) a=${a^^};;
         *) echo "unknown assertion '$a' (${f}:${FUNCNAME[1]}:${BASH_LINENO[0]})"; return $r_fail;;
     esac
     set -- "$@"
