@@ -153,7 +153,9 @@ assert() {
             func=${FUNCNAME[1]}
             line=${BASH_LINENO[0]}
         }
-        echo "assertion failed$( ((SHOULD_FAIL)) && echo ' (expected)'): ${f}:${func}:${line}:"
+        ((SHOULD_FAIL && !SHOW_OUTPUT)) && return $r
+        ((SHOULD_FAIL)) && failed_expected=' (expected)'
+        echo "assertion failed${failed_expected}: ${f}:${func}:${line}:"
         
         echo " assert ${is_not}${a} $@"
         [[ "$a" == SAME ]] && {
