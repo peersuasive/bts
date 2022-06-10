@@ -380,6 +380,14 @@ run() {
     local results
     local total_run=0
     local f
+    ## load local env
+    if [[ -f 'bts.env' ]]; then
+        eval $(while read l; do
+            [[ "$l" =~ ^# || ! "$l" =~ = ]] && continue
+            ! [[ "$l" =~ ^[\t\ ]*export[\t\ ]+ ]] && l="export $l"
+            echo $l
+        done <bts.env)
+    fi
     for f in ${test_list}; do
         local ff="$f"
         local t=''

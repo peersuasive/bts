@@ -81,3 +81,7 @@ assert__same() {
     @should_fail assert same "/tmp/some_file" <(echo "bcd")
     @should_fail assert not same "/tmp/some_file" <(echo "abc")
 }
+
+load_bts_env() {
+    assert same "$test_load" "test_load"
+}
