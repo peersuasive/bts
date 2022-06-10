@@ -125,7 +125,7 @@ assert() {
         *) echo "unknown assertion '$a' (${f}:${FUNCNAME[1]}:${BASH_LINENO[0]})"; return $r_fail;;
     esac
     set -- "$@"
-    [[ -z "$@" ]] && echo_c SYNTAX "Missing evaluation!" && exit 1
+    [[ -z "${@+z}" ]] && echo_c SYNTAX "Missing evaluation!" && exit 1
     local cmp="$1"
     local exp="$2"
     local cmp_f exp_f
