@@ -37,6 +37,7 @@ Utils (functions):
         false   assert evaluation if false
         equals  assert left string equals expected right string
         same    assert left string or file contents equals expected right string or file contents
+        exists  assert contents exist
     @should_fail <expression>
                 assert next evaluation fails as expected
 Debug/trace:
@@ -138,6 +139,13 @@ assert() {
             } || r=1
             [[ "$a" == FALSE ]] && r=$((!r));;
         EQUALS) [[ "$cmp" == "$exp" ]] && r=0 || r=1;;
+        EXISTS) [[ -n "$cmp" ]] && {
+                    ! [[ "$cmp" =~ ^[$] ]] && r=0 || {
+                        local xv="${cmp#$}"
+                        local xval=${!xv}
+                        [[ -n "$xval" ]] && r=0
+                    }
+                } || r=1;;
         SAME)
             [[ -r "$exp" ]] && exp_f="$exp"||:; [[ -r "$cmp" ]] && cmp_f="$cmp"||:;
             diff -q ${cmp_f:-<(echo "$1")} ${exp_f:-<(echo "$2")} >/dev/null 2>/dev/null && r=0 || r=1;;
