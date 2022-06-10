@@ -40,6 +40,15 @@ assert__assert_true() {
     assert 'true' 'return 0'
     assert true [[ 1 == 1 ]]
     @should_fail assert true [[ 1 == 2 ]]
+    assert true [[ 1 == 1 ]]
+    assert true TRUE
+    assert true true
+    assert true tRuE
+    assert not true FALSE
+    assert not true FaLsE
+    assert true 1
+    assert not true 11
+    assert not true 0
 }
 
 assert__assert_false() {
@@ -48,6 +57,15 @@ assert__assert_false() {
     assert false return 1
     assert false [[ 1 == 2 ]]
     @should_fail assert false [[ 1 == 1 ]]
+    assert false [[ 1 == 0 ]]
+    assert false FALSE
+    assert false false
+    assert false FaLsE
+    assert not false TRUE
+    assert not false TrUe
+    assert false 0
+    assert false "11"
+    assert not false 1
 }
 
 assert__same() {

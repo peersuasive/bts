@@ -130,8 +130,13 @@ assert() {
     local exp="$2"
     local cmp_f exp_f
     case $a in
-        TRUE) (eval "$@";) && r=0 || r=1;;
-        FALSE) (! eval "$@";) && r=0 || r=1;;
+        TRUE|FALSE)
+            [[ -n "$cmp" && ! "$cmp" =~ ^[0]+$ && ! "$cmp" =~ ^[\t\ ]*[Ff][Aa][Ll][Ss][Ee][\t\ ]*$ ]] && {
+                [[ "$cmp" =~ ^[\t\ ]*[Tt][Rr][Uu][Ee][\t\ ]*$ || "$cmp" == "1" ]] && r=0 || {
+                    (eval "$@";) && r=0
+                }
+            } || r=1
+            [[ "$a" == FALSE ]] && r=$((!r));;
         EQUALS) [[ "$cmp" == "$exp" ]] && r=0 || r=1;;
         SAME)
             [[ -r "$exp" ]] && exp_f="$exp"||:; [[ -r "$cmp" ]] && cmp_f="$cmp"||:;
