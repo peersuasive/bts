@@ -2,6 +2,8 @@
 
 set -o pipefail
 
+DEBUG=${DEBUG:-0}
+
 usage() {
     cat <<EOU
 Usage: ${0##*/} [-h] [OPTIONS] [test...]
@@ -24,6 +26,7 @@ Options:
     -s|--silent             don't show any output at all
     -l|--list|--list-tests  list available test without executing
     -t|--tests-dir <dir>    look for tests in 'dir' instead of 'tests'
+    -d|--debug              enable dbg traces
 
 Utils (functions):
     setup    run before each test
@@ -100,7 +103,7 @@ todo() {
 }
 
 dbg() {
-    echo -e "[DBG] $@" >&2
+    ((!QUIET && DEBUG)) && echo -e "[DBG] $@" >&2
 }
 trace() {
     echo "$@" >&2
@@ -118,13 +121,14 @@ export SHOULD_FAIL=0
 
 assert() {
     local NOT=0
+    local sf=${f##*/}
     [[ "$1" == NOT || "$1" == not ]] && NOT=1 && shift
     local is_not=$( ((NOT)) && echo 'NOT ' )
     local a="$1"; shift
     local res1 res2 r
     case "${a^^}" in
         TRUE|FALSE|EQUALS|SAME|EXISTS|FILE~|FILE) a=${a^^};;
-        *) echo "unknown assertion '$a' (${f}:${FUNCNAME[1]}:${BASH_LINENO[0]})"; return $r_fail;;
+        *) echo "unknown assertion '$a' (${sf}:${FUNCNAME[1]}:${BASH_LINENO[0]})"; return $r_fail;;
     esac
     set -- "$@"
     [[ -z "${@+z}" ]] && echo_c SYNTAX "Missing evaluation!" && exit 1
@@ -166,7 +170,7 @@ assert() {
         }
         ((SHOULD_FAIL && !SHOW_OUTPUT)) && return $r
         ((SHOULD_FAIL)) && failed_expected=' (expected)'
-        echo "assertion failed${failed_expected}: ${f}:${func}:${line}:"
+        echo "assertion failed${failed_expected}: ${sf}:${func}:${line}:"
         
         echo " assert ${is_not}${a} $@"
         [[ "$a" == SAME ]] && {
@@ -232,6 +236,7 @@ EOS
 _run_tests() {
     local prev_failed=0
     local f="${1:?Missing test class}"
+    local sf="${f##*/}"
     local l_t="$2"
     local l_tests=( "${l_t:-${tests[@]}}" )
     local setup="${tests_ext[setup]}"
@@ -300,7 +305,7 @@ _run_tests() {
                 }
                 local err_line=$(sed -n ${line}p "$f"|xargs|tr -d $'\n')
                 
-                echo "Failed at ${f}:${func}:${fline} -> ${err_line:-$BASH_COMMAND} (--> [${FUNCNAME[@]}, ${BASH_LINENO[@]}])"
+                echo -e "Failed at ${sf}:${func}:${fline}\n: ${err_line:-$BASH_COMMAND}\n(--> [${FUNCNAME[@]}, ${BASH_LINENO[@]}])"
                 dbg "TRAP TO RETURN $retval"
                 return $retval
             }
@@ -309,7 +314,7 @@ _run_tests() {
             command_not_found_handle() {
                 local line=${BASH_LINENO[0]}
                 local err_line=$(sed -n ${line}p "$f"|xargs|tr -d $'\n')
-                echo "FATAL: command not found: ${f##*/}:${FUNCNAME[1]}:${BASH_LINENO[0]}: $err_line"
+                echo -e "FATAL: command not found: ${sf}:${FUNCNAME[1]}:${BASH_LINENO[0]}:\n -> $err_line"
                 exit $r_fatal
             }
 
@@ -442,8 +447,9 @@ while (($#)); do
         -v|--verbose) SHOW_FAILED=1;;
         -C|--no-color) NO_COLORS=1;;
         -c|--color) NO_COLORS=0;;
-        -q|--quiet) SHOW_FAILED=0;;
-        -qq|--very-quiet|-s|--silent) SHOW_FAILED=0; SHOW_OUTPUT=0;;
+        -d|--debug) DEBUG=1;;
+        -q|--quiet) QUIET=1; SHOW_FAILED=0;;
+        -qq|--very-quiet|-s|--silent) QUIET=1; SHOW_FAILED=0; SHOW_OUTPUT=0;;
         -l|--list|--list-tests) LIST_ONLY=1;;
         -t|--tests-dir) TEST_DIR="$2"; shift;;
         #-i|--interactive) LIST_ONLY=1; INTERACTIVE=1;;
