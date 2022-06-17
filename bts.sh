@@ -177,8 +177,8 @@ assert() {
         echo "-> $c"
         echo "=> assert ${is_not}${a} '${cmp}' ${exp+'$exp'}"
         [[ "$a" == SAME ]] && {
-            echo -e "expected${exp_f:+ (from '$exp_f')}:\n----------\n$(cat ${exp_f:-<(echo "$exp")})\n----------"
-            echo -e "got${cmp_f:+ (from '$cmp_f')}:\n----------\n$(cat ${cmp_f:-<(echo $cmp)})\n----------"
+            echo -e "${YELLOW}expected${RST}${exp_f:+ (from '$exp_f')}:\n----------\n$(cat ${exp_f:-<(echo "$exp")})\n----------"
+            echo -e "${YELLOW}got${RST}${cmp_f:+ (from '$cmp_f')}:\n----------\n$(cat ${cmp_f:-<(echo $cmp)})\n----------"
         }
         return $r
     }
