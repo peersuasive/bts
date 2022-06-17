@@ -10,11 +10,12 @@ reset() {
 setup() {
     dbg "[SETUP]"
     test_file="/tmp/bts.test_$$.txt"
+    test_complex_file="/tmp/bts.test_$$.Some_Complex_File.20220617180037.txt"
 }
 
 teardown() {
     dbg "[TEARDOWN]"
-    \rm -f "$test_file"
+    \rm -f "$test_file" "$test_complex_file"
 }
 
 _disabled_test() {
@@ -100,4 +101,7 @@ assert__assert_file() {
     assert file~ "/tmp/bts.test[^.]+\.txt"
     @should_fail assert file "${test_file}_not_there"
     @should_fail assert file~ "${test_file}.*_not_there"
+
+    touch "$test_complex_file"
+    assert file~ '/tmp/bts.test_[^.]+.Some_Complex_File.20[2-9][0-9]\(0[1-9]\|1[0-2]\)\(0[1-9]\|[12][0-9]\|3[01]\)[0-5][0-9][0-5][0-9][0-5][0-9]\.txt'
 }
