@@ -97,7 +97,7 @@ assert__assert_file() {
     assert not file "$test_file"
     touch "$test_file"
     assert file "$test_file"
-    assert file~ "/tmp/bts.test*.txt"
+    assert file~ "/tmp/bts.test[^.]+\.txt"
     @should_fail assert file "${test_file}_not_there"
-    @should_fail assert file~ "${test_file}*_not_there"
+    @should_fail assert file~ "${test_file}.*_not_there"
 }
