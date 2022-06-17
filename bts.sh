@@ -170,8 +170,8 @@ assert() {
         }
         ((SHOULD_FAIL && !SHOW_OUTPUT)) && return $r
         ((SHOULD_FAIL)) && failed_expected=' (expected)'
-        echo "assertion failed${failed_expected}: ${sf}:${func}:${line}:"
-        
+        echo -e "${RED}assertion failed${YELLOW}${failed_expected}${RST}: ${BLUE}${sf}:${WHITE}${func}:${CYAN}${line}${RST}:"
+
         echo " assert ${is_not}${a} $@"
         [[ "$a" == SAME ]] && {
             echo -e "expected${exp_f:+ (from '$exp_f')}:\n----------\n$(cat ${exp_f:-<(echo "$exp")})\n----------"
