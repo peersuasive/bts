@@ -9,10 +9,12 @@ reset() {
 }
 setup() {
     dbg "[SETUP]"
+    test_file="/tmp/bts.test_$$.txt"
 }
 
 teardown() {
     dbg "[TEARDOWN]"
+    \rm -f "$test_file"
 }
 
 _disabled_test() {
@@ -89,4 +91,13 @@ assert_assert_exists() {
 
 load_bts_env() {
     assert same "$test_load" "test_load"
+}
+
+assert__assert_file() {
+    assert not file "$test_file"
+    touch "$test_file"
+    assert file "$test_file"
+    assert file~ "/tmp/bts.test*.txt"
+    @should_fail assert file "${test_file}_not_there"
+    @should_fail assert file~ "${test_file}*_not_there"
 }

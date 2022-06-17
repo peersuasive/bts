@@ -123,7 +123,7 @@ assert() {
     local a="$1"; shift
     local res1 res2 r
     case "${a^^}" in
-        TRUE|FALSE|EQUALS|SAME|EXISTS) a=${a^^};;
+        TRUE|FALSE|EQUALS|SAME|EXISTS|FILE~|FILE) a=${a^^};;
         *) echo "unknown assertion '$a' (${f}:${FUNCNAME[1]}:${BASH_LINENO[0]})"; return $r_fail;;
     esac
     set -- "$@"
@@ -140,6 +140,8 @@ assert() {
             } || r=1
             [[ "$a" == FALSE ]] && r=$((!r));;
         EQUALS) [[ "$cmp" == "$exp" ]] && r=0 || r=1;;
+        FILE~) find "$(dirname "$cmp")" -maxdepth 1 -name "$(basename "$cmp")" | grep -q '.' && r=0 || r=1;;
+        FILE)  [[ -e "$cmp" ]] && r=0 || r=1;;
         EXISTS) [[ -n "$cmp" ]] && {
                     ! [[ "$cmp" =~ ^[$] ]] && r=0 || {
                         local xv="${cmp#$}"
