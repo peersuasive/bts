@@ -7,7 +7,7 @@ usage() {
 Usage: ${0##*/} [-h] [OPTIONS] [test...]
 
 Usage notes:
-    Tests are expected to be found in folder 'tests/',
+    Tests are expected to be found in folder 'tests/' (see '-t' option),
     named as '[NN].<test>.sh'; ex.: tests/00.bts_tests.sh.
 
     Results are stored in 'results/[TEST CLASS]/[TEST NAME].log'
@@ -23,6 +23,7 @@ Options:
     -qq|--very-quiet
     -s|--silent             don't show any output at all
     -l|--list|--list-tests  list available test without executing
+    -t|--tests-dir <dir>    look for tests in 'dir' instead of 'tests'
 
 Utils (functions):
     setup    run before each test
@@ -182,8 +183,6 @@ INTERACTIVE=0
 SHOW_OUTPUT=0
 SHOW_FAILED=1
 NO_COLORS=0
-## no tests found
-! [[ -d tests ]] && exit 0
 
 oldIFS=$IFS
 home="$( dirname "$(readlink -f "$0")" )"
@@ -433,6 +432,7 @@ run() {
 }
 
 ARGS=()
+TEST_DIR=tests
 while (($#)); do
     case "$1" in
         -h|--help) usage; exit 0;;
@@ -443,6 +443,7 @@ while (($#)); do
         -q|--quiet) SHOW_FAILED=0;;
         -qq|--very-quiet|-s|--silent) SHOW_FAILED=0; SHOW_OUTPUT=0;;
         -l|--list|--list-tests) LIST_ONLY=1;;
+        -t|--tests-dir) TEST_DIR="$2"; shift;;
         #-i|--interactive) LIST_ONLY=1; INTERACTIVE=1;;
         *) ARGS+=( "$1" );;
     esac
@@ -450,6 +451,8 @@ while (($#)); do
 done
 !((NO_COLORS)) && _set_colors
 set -- "${ARGS[@]}"
+## no tests found
+! [[ -d "$TEST_DIR" ]] && echo "Nothing to test" && exit 0
 
-test_list="${@:-$here/tests/[0-9]*.sh}"
+test_list="${@:-$here/$TEST_DIR/[0-9]*.sh}"
 run
