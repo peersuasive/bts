@@ -140,7 +140,7 @@ assert() {
             } || r=1
             [[ "$a" == FALSE ]] && r=$((!r));;
         EQUALS) [[ "$cmp" == "$exp" ]] && r=0 || r=1;;
-        FILE~) local dn="$(dirname "$cmp")"; find "$dn" -maxdepth 1 -regex "$dn/$(basename "$cmp")" | grep -q '.' && r=0 || r=1;;
+        FILE~) local dn="$(dirname "$cmp")"; find "$dn" -maxdepth 1 -regex "$dn/$(basename "$cmp")" 2>/dev/null| grep -q '.' && r=0 || r=1;;
         FILE)  [[ -e "$cmp" ]] && r=0 || r=1;;
         EXISTS) [[ -n "$cmp" ]] && {
                     ! [[ "$cmp" =~ ^[$] ]] && r=0 || {
