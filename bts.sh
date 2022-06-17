@@ -133,12 +133,13 @@ assert() {
     set -- "$@"
     [[ -z "${@+z}" ]] && echo_c SYNTAX "Missing evaluation!" && exit 1
     local cmp="$1"
-    local exp="$2"
+    local exp="$2"; [[ ! "${2+x}" == "x" ]] && unset exp
     local cmp_f exp_f
     case $a in
         TRUE|FALSE)
             [[ -n "$cmp" && ! "$cmp" =~ ^[0]+$ && ! "$cmp" =~ ^[\t\ ]*[Ff][Aa][Ll][Ss][Ee][\t\ ]*$ ]] && {
                 [[ "$cmp" =~ ^[\t\ ]*[Tt][Rr][Uu][Ee][\t\ ]*$ || "$cmp" == "1" ]] && r=0 || {
+                    cmp="$@"; unset exp
                     (eval "$@";) && r=0
                 }
             } || r=1
@@ -172,7 +173,9 @@ assert() {
         ((SHOULD_FAIL)) && failed_expected=' (expected)'
         echo -e "${RED}assertion failed${YELLOW}${failed_expected}${RST}: ${BLUE}${sf}:${WHITE}${func}:${CYAN}${line}${RST}:"
 
-        echo " assert ${is_not}${a} $@"
+        local c="$( sed -n "${line}p" "$f" | sed -e 's/^[\t ]*\(.*\)$/\1/g')"
+        echo "-> $c"
+        echo "=> assert ${is_not}${a} '${cmp}' ${exp+'$exp'}"
         [[ "$a" == SAME ]] && {
             echo -e "expected${exp_f:+ (from '$exp_f')}:\n----------\n$(cat ${exp_f:-<(echo "$exp")})\n----------"
             echo -e "got${cmp_f:+ (from '$cmp_f')}:\n----------\n$(cat ${cmp_f:-<(echo $cmp)})\n----------"
