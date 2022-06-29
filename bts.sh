@@ -109,6 +109,17 @@ trace() {
     echo "$@" >&2
 }
 
+export_cmds() {
+    for c in 'fail' 'ok' 'fatal' 'todo' 'dbg' 'trace' 'setup'; do
+        typeset -f "$c"
+    done
+    typeset vars=""
+    for v in 'r_ok' 'r_fail' 'r_fatal' 'r_warn' 'r_todo'; do
+        vars+="export $v=\"${!v}\";"
+    done
+    echo "${vars%;}"
+}
+
 export SHOULD=0
 export SHOULD_FAIL=0
 @should_fail() {
