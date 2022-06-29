@@ -241,7 +241,7 @@ _run_tests() {
     local f="${1:?Missing test class}"
     local sf="${f##*/}"
     local l_t="$2"
-    local l_tests=( "${l_t:-${tests[@]}}" )
+    local l_tests=( ${l_t:-${tests[@]}} )
     local setup="${tests_ext[setup]}"
     local teardown="${tests_ext[teardown]}"
     local preset="${tests_ext[preset]}"
@@ -251,6 +251,7 @@ _run_tests() {
     unimplemented=0
     total=${#l_tests[@]}; local s; ((total>1)) && s='s'
 
+    ((!total)) && echo "No test found" && return $r_ok
     echo "Executing $total test$s"
     echo
     local n nn
