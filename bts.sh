@@ -229,9 +229,13 @@ assert() {
         echo "-> $c"
         echo "=> assert ${is_not}${a} '${cmp}' ${exp+'$exp'}"
         [[ "$a" == SAME ]] && {
+            echo
             echo -e "${YELLOW}expected${RST}${cmp_f:+ (from '$cmp_f')}:\n----------\n$(cat ${cmp_f:-<(echo "$cmp")})\n----------"
             echo -e "${YELLOW}got${RST}${exp_f:+ (from '$exp_f')}:\n----------\n$(cat ${exp_f:-<(echo $exp)})\n----------"
-            [[ -n "$cmp_diff" ]] && echo -e "${YELLOW}diff${RST}:\n$cmp_diff"
+            [[ -n "$cmp_diff" ]] && {
+                echo -e "${YELLOW}diff${RST}:\n$cmp_diff"
+                echo "----------"
+            }
         }
         return $r
     }
