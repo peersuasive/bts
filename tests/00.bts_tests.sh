@@ -7,15 +7,18 @@ preset() {
 reset() {
     :
 }
+
+tmp_dir=
 setup() {
     dbg "[SETUP]"
-    test_file="/tmp/bts.test_$$.txt"
-    test_complex_file="/tmp/bts.test_$$.Some_Complex_File.20220617180037.txt"
+    tmp_dir=/tmp/bts.test.$$; mkdir -p "$tmp_dir"
+    test_file="${tmp_dir}/bts.test_$$.txt"
+    test_complex_file="${tmp_dir}/bts.test_$$.Some_Complex_File.20220617180037.txt"
 }
 
 teardown() {
     dbg "[TEARDOWN]"
-    \rm -f "$test_file" "$test_complex_file"
+    [[ -n "$tmp_dir" ]] && \rm -rf "$tmp_dir"
 }
 
 _disabled_test() {
@@ -77,12 +80,12 @@ assert__same() {
     assert same "abc" <(echo "abc")
     assert same <(echo "abc") <(echo abc)
     assert not same <(echo "abc") <(echo bcd)
-    echo 'abc' > "/tmp/some_file"
-    assert same "/tmp/some_file" "abc"
-    assert same "/tmp/some_file" <(echo "abc")
-    assert not same "/tmp/some_file" <(echo "bcd")
-    @should_fail assert same "/tmp/some_file" <(echo "bcd")
-    @should_fail assert not same "/tmp/some_file" <(echo "abc")
+    echo 'abc' > "$tmp_dir/some_file"
+    assert same "$tmp_dir/some_file" "abc"
+    assert same "$tmp_dir/some_file" <(echo "abc")
+    assert not same "$tmp_dir/some_file" <(echo "bcd")
+    @should_fail assert same "$tmp_dir/some_file" <(echo "bcd")
+    @should_fail assert not same "$tmp_dir/some_file" <(echo "abc")
 }
 
 assert_assert_exists() {
@@ -98,10 +101,10 @@ assert__assert_file() {
     assert not file "$test_file"
     touch "$test_file"
     assert file "$test_file"
-    assert file~ "/tmp/bts.test[^.]+\.txt"
+    assert file~ "$tmp_dir/bts.test[^.]+\.txt"
     @should_fail assert file "${test_file}_not_there"
     @should_fail assert file~ "${test_file}.*_not_there"
 
     touch "$test_complex_file"
-    assert file~ '/tmp/bts.test_[^.]+.Some_Complex_File.20[2-9][0-9]\(0[1-9]\|1[0-2]\)\(0[1-9]\|[12][0-9]\|3[01]\)[0-5][0-9][0-5][0-9][0-5][0-9]\.txt'
+    assert file~ "$tmp_dir"'/bts.test_[^.]+.Some_Complex_File.20[2-9][0-9]\(0[1-9]\|1[0-2]\)\(0[1-9]\|[12][0-9]\|3[01]\)[0-5][0-9][0-5][0-9][0-5][0-9]\.txt'
 }
