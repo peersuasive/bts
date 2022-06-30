@@ -50,31 +50,61 @@ Debug/trace:
 EOU
 }
 
+exp_vars=()
+exp_cmds=()
+
 ## ----------------------- lib
-declare RST BLINK INV BLUE RED YELLOW MAGENTA WHITE CYAN
-_set_colors() {
-    declare -gr BOLD='\e[1m'
-    declare -gr RST='\e[0m'
-    declare -gr BLINK='\e[5m'
-    declare -gr INV='\e[7m'
-    declare -gr BLUE='\e[34m'
-    declare -gr RED='\e[31m'
-    declare -gr YELLOW='\e[33m'
-    declare -gr MAGENTA='\e[35m'
-    declare -gr WHITE='\e[97m'
-    declare -gr CYAN='\e[36m'
+declare RST BLINK INV BLUE RED GREEN YELLOW MAGENTA WHITE CYAN
+diff_=$(which diff) || { fatal "Can't find 'diff' command!"; exit 1; }
+diff() {
+    $diff_ "$@"
 }
+_set_colors() {
+    declare -gr BOLD='\033[1m'
+    declare -gr RST='\033[0m'
+    declare -gr BLINK='\033[5m'
+    declare -gr INV='\033[7m'
+    declare -gr BLUE='\033[34m'
+    declare -gr RED='\033[31m'
+    declare -gr GREEN='\033[32m'
+    declare -gr YELLOW='\033[33m'
+    declare -gr MAGENTA='\033[35m'
+    declare -gr WHITE='\033[97m'
+    declare -gr CYAN='\033[36m'
+    exp_vars+=( BOLD RST BLINK INV BLUE RED GREEN YELLOW MAGENTA WHITE CYAN )
+
+    if which colordiff 2>/dev/null; then
+        diff_=colordiff
+    else
+        diff() {
+            typeset r=0
+            typeset res
+            res="$( $diff_ "$@" | sed -re "s;^([+].*)$;\\${GREEN}\1\\${RST};;s;^([-].*)$;\\${RED}\1\\${RST};" )"
+            r=$?
+            echo -e "$res"
+            return $r
+        }
+    fi
+}
+exp_cmds+=( diff )
+
 OK=OK
 FAILED=FAILED
 FATAL=FATAL
 TODO=TODO
 MSG_STATUS=
+QUIET=
+SHOW_OUTPUT=
+SHOW_FAILED=
+
+exp_vars+=( OK FAILED FATAL TODO QUIET DEBUG )
 
 r_ok=0
 r_fail=1
 r_fatal=2
 r_warn=3
 r_todo=4
+exp_vars+=( r_ok r_fail r_fatal r_warn r_todo )
 
 echo_c() {
     local s=$1; shift
@@ -108,13 +138,14 @@ dbg() {
 trace() {
     echo "$@" >&2
 }
+exp_cmds+=( fail ok fatal todo dbg trace )
 
 export_cmds() {
-    for c in 'fail' 'ok' 'fatal' 'todo' 'dbg' 'trace' 'setup'; do
+    for c in ${exp_cmds[@]} 'setup' 'teardown'; do
         typeset -f "$c"
     done
     typeset vars=""
-    for v in 'r_ok' 'r_fail' 'r_fatal' 'r_warn' 'r_todo'; do
+    for v in ${exp_vars[@]}; do
         vars+="export $v=\"${!v}\";"
     done
     echo "${vars%;}"
@@ -146,6 +177,7 @@ assert() {
     local cmp="$1"
     local exp="$2"; [[ ! "${2+x}" == "x" ]] && unset exp
     local cmp_f exp_f
+    local cmp_diff
     case $a in
         TRUE|FALSE)
             [[ -n "$cmp" && ! "$cmp" =~ ^[0]+$ && ! "$cmp" =~ ^[\t\ ]*[Ff][Aa][Ll][Ss][Ee][\t\ ]*$ ]] && {
@@ -166,8 +198,8 @@ assert() {
                     }
                 } || r=1;;
         SAME)
-            [[ -r "$exp" ]] && exp_f="$exp"||:; [[ -r "$cmp" ]] && cmp_f="$cmp"||:;
-            diff -q ${cmp_f:-<(echo "$1")} ${exp_f:-<(echo "$2")} >/dev/null 2>/dev/null && r=0 || r=1;;
+            [[ -e "$exp" ]] && exp_f="$exp"||:; [[ -e "$cmp" ]] && cmp_f="$cmp"||:;
+            cmp_diff=$(diff -u ${exp_f:-<(echo "$1")} ${cmp_f:-<(echo "$2")} 2>/dev/null) && r=0 || r=1;;
     esac
     local old_r=$r
     ((NOT)) && r=$((!r))
@@ -188,8 +220,9 @@ assert() {
         echo "-> $c"
         echo "=> assert ${is_not}${a} '${cmp}' ${exp+'$exp'}"
         [[ "$a" == SAME ]] && {
-            echo -e "${YELLOW}expected${RST}${exp_f:+ (from '$exp_f')}:\n----------\n$(cat ${exp_f:-<(echo "$exp")})\n----------"
-            echo -e "${YELLOW}got${RST}${cmp_f:+ (from '$cmp_f')}:\n----------\n$(cat ${cmp_f:-<(echo $cmp)})\n----------"
+            echo -e "${YELLOW}expected${RST}${cmp_f:+ (from '$cmp_f')}:\n----------\n$(cat ${cmp_f:-<(echo "$cmp")})\n----------"
+            echo -e "${YELLOW}got${RST}${exp_f:+ (from '$exp_f')}:\n----------\n$(cat ${exp_f:-<(echo $exp)})\n----------"
+            [[ -n "$cmp_diff" ]] && echo -e "${YELLOW}diff${RST}:\n$cmp_diff"
         }
         return $r
     }
