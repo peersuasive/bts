@@ -223,7 +223,7 @@ assert() {
         }
         ((SHOULD_FAIL && !DEBUG_BTS)) && return $r
         ((SHOULD_FAIL)) && failed_expected=' (expected)'
-        echo -e "${RED}assertion failed${YELLOW}${failed_expected}${RST}: ${BLUE}${sf}:${WHITE}${func}:${CYAN}${line}${RST}:"
+        echo -e "${INV}${RED}assertion failed${YELLOW}${failed_expected}${RST}: ${BLUE}${sf}${RST}:${WHITE}${UND}${func}${RST}:${BOLD}${CYAN}${INV}${line}${RST}:"
 
         local c="$( sed -n "${line}p" "$f" | sed -e 's/^[\t ]*\(.*\)$/\1/g')"
         echo "-> $c"
