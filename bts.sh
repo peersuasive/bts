@@ -492,7 +492,7 @@ run() {
         local failed=0
         local fr=${ff##*/}
         results="$results_base/${fr%.*}"; mkdir -p "$results"
-        echo -e "${INV}Running test class ${BOLD}${CYAN}$f${RST}"
+        echo -e "${INV}Running test class ${BOLD}${CYAN}$fr${RST}"
         _run_tests "$ff" "$t"
         echo
         echo -e "-> [$((total-failed))/$total] ($failed failure$(((failed>1)) && echo s)$(((unimplemented)) && echo ", $unimplemented being unimplemented test$(((unimplemented>1))&& echo s)"))"
