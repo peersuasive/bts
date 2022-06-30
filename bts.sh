@@ -178,7 +178,7 @@ assert() {
     local a="$1"; shift
     local res1 res2 r
     case "${a^^}" in
-        TRUE|FALSE|EQUALS|SAME|EXISTS|FILE~|FILE) a=${a^^};;
+        TRUE|FALSE|EQUALS|SAME|SAME~|EXISTS|FILE~|FILE) a=${a^^};;
         *) echo "unknown assertion '$a' (${sf}:${FUNCNAME[1]}:${BASH_LINENO[0]})"; return $r_fail;;
     esac
     set -- "$@"
@@ -209,6 +209,9 @@ assert() {
         SAME)
             [[ -e "$exp" ]] && exp_f="$exp"||:; [[ -e "$cmp" ]] && cmp_f="$cmp"||:;
             cmp_diff=$(diff -u ${exp_f:-<(echo "$2")} ${cmp_f:-<(echo "$1")} 2>/dev/null) && r=0 || r=1;;
+        SAME~)
+            [[ -e "$exp" ]] && exp_f="$exp"||:; [[ -e "$cmp" ]] && cmp_f="$cmp"||:;
+            cmp_diff=$(diff -u <(sort ${exp_f:-<(echo "$2")}) <(sort ${cmp_f:-<(echo "$1")}) 2>/dev/null) && r=0 || r=1;;
     esac
     local old_r=$r
     ((NOT)) && r=$((!r))
@@ -228,7 +231,7 @@ assert() {
         local c="$( sed -n "${line}p" "$f" | sed -e 's/^[\t ]*\(.*\)$/\1/g')"
         echo "-> $c"
         echo "=> assert ${is_not}${a} '${cmp}' ${exp+'$exp'}"
-        [[ "$a" == SAME ]] && {
+        [[ "$a" == SAME || "$a" == SAME~ ]] && {
             echo
             echo -e "${YELLOW}expected${RST}${cmp_f:+ (from '$cmp_f')}:\n----------\n$(cat ${cmp_f:-<(echo "$cmp")})\n----------"
             echo -e "${YELLOW}got${RST}${exp_f:+ (from '$exp_f')}:\n----------\n$(cat ${exp_f:-<(echo $exp)})\n----------"

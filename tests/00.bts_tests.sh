@@ -88,6 +88,28 @@ assert__same() {
     @should_fail assert not same "$tmp_dir/some_file" <(echo "abc")
 }
 
+assert__same_unordered() {
+    assert same~ "one" "one"
+    assert not same~ "one" "two"
+    assert same~ "abc" <(echo "abc")
+    assert same~ <(echo "abc") <(echo abc)
+    assert not same~ <(echo "abc") <(echo bcd)
+    echo 'abc' > "$tmp_dir/some_file"
+    assert same~ "$tmp_dir/some_file" "abc"
+    assert same~ "$tmp_dir/some_file" <(echo "abc")
+    assert not same~ "$tmp_dir/some_file" <(echo "bcd")
+    @should_fail assert same~ "$tmp_dir/some_file" <(echo "bcd")
+    @should_fail assert not same~ "$tmp_dir/some_file" <(echo "abc")
+
+    echo -e "abc\ndef\nghi" > "$tmp_dir/some_file"
+    echo -e "ghi\nabc\ndef" > "$tmp_dir/some_other_file"
+    assert not same "$tmp_dir/some_file" "$tmp_dir/some_other_file"
+    assert same~ "$tmp_dir/some_file" "$tmp_dir/some_other_file"
+    echo -e "ghi\nabc" > "$tmp_dir/some_other_file"
+    assert not same~ "$tmp_dir/some_file" "$tmp_dir/some_other_file"
+}
+
+
 assert_assert_exists() {
     assert exists "here I am"
     assert not exists ''
