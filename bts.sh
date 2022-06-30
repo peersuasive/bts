@@ -74,7 +74,8 @@ _set_colors() {
     declare -gr MAGENTA='\033[35m'
     declare -gr WHITE='\033[97m'
     declare -gr CYAN='\033[36m'
-    exp_vars+=( BOLD RST BLINK INV BLUE RED GREEN YELLOW MAGENTA WHITE CYAN )
+    declare -gr UND='\033[4m'
+    exp_vars+=( BOLD RST BLINK INV BLUE RED GREEN YELLOW MAGENTA WHITE CYAN UND )
 
     if which colordiff 2>/dev/null; then
         diff_=colordiff
