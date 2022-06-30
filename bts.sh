@@ -77,7 +77,7 @@ _set_colors() {
     declare -gr UND='\033[4m'
     exp_vars+=( BOLD RST BLINK INV BLUE RED GREEN YELLOW MAGENTA WHITE CYAN UND )
 
-    if which colordiff 2>/dev/null; then
+    if which colordiff 1>/dev/null 2>/dev/null; then
         diff_=colordiff
     else
         diff() {
