@@ -3,6 +3,7 @@
 set -o pipefail
 
 DEBUG=${DEBUG:-0}
+DEBUG_BTS=${DEBUG_BTS:-0}
 
 usage() {
     cat <<EOU
@@ -26,7 +27,9 @@ Options:
     -s|--silent             don't show any output at all
     -l|--list|--list-tests  list available test without executing
     -t|--tests-dir <dir>    look for tests in 'dir' instead of 'tests'
+    -D|--DEBUG              debug BTS
     -d|--debug              enable dbg traces
+    
 
 Utils (functions):
     setup    run before each test
@@ -136,6 +139,10 @@ dbg() {
     ((!QUIET && DEBUG)) && echo -e "[DBG] $@" >&2
     return 0
 }
+DBG() {
+    ((DEBUG_BTS)) && echo -e "[BTS] $@" >&2
+    return 0
+}
 trace() {
     echo "$@" >&2
 }
@@ -213,7 +220,7 @@ assert() {
             func=${FUNCNAME[1]}
             line=${BASH_LINENO[0]}
         }
-        ((SHOULD_FAIL && !SHOW_OUTPUT)) && return $r
+        ((SHOULD_FAIL && !DEBUG_BTS)) && return $r
         ((SHOULD_FAIL)) && failed_expected=' (expected)'
         echo -e "${RED}assertion failed${YELLOW}${failed_expected}${RST}: ${BLUE}${sf}:${WHITE}${func}:${CYAN}${line}${RST}:"
 
@@ -339,11 +346,11 @@ _run_tests() {
                 local lineno="${BASH_LINENO[1]}"
                 local line fline func
                 ((SHOULD)) && {
-                    dbg "IS A SHOULD"
+                    DBG "IS A SHOULD"
                     line=${BASH_LINENO[1]}
                     func="${FUNCNAME[2]}"
                 } || {
-                    dbg "IS NOT A SHOULD"
+                    DBG "IS NOT A SHOULD"
                     line=${BASH_LINENO[0]}
                     func="${FUNCNAME[1]}"
                 }
@@ -355,7 +362,7 @@ _run_tests() {
                 local err_line=$(sed -n ${line}p "$f"|xargs|tr -d $'\n')
                 
                 echo -e "Failed at ${sf}:${func}:${fline}\n: ${err_line:-$BASH_COMMAND}\n(--> [${FUNCNAME[@]}, ${BASH_LINENO[@]}])"
-                dbg "TRAP TO RETURN $retval"
+                DBG "TRAP TO RETURN $retval"
                 return $retval
             }
             trap '_trap_err' ERR
@@ -496,6 +503,7 @@ while (($#)); do
         -C|--no-color) NO_COLORS=1;;
         -c|--color) NO_COLORS=0;;
         -d|--debug) DEBUG=1;;
+        -D|--DEBUG) DEBUG_BTS=1;;
         -q|--quiet) QUIET=1; SHOW_FAILED=0;;
         -qq|--very-quiet|-s|--silent) QUIET=1; SHOW_FAILED=0; SHOW_OUTPUT=0;;
         -l|--list|--list-tests) LIST_ONLY=1;;
