@@ -74,7 +74,7 @@ assert__assert_false() {
 assert__same() {
     assert same "one" "one"
     assert not same "one" "two"
-    assert same <(echo "abc") "abc"
+    assert same "abc" <(echo "abc")
     assert same <(echo "abc") <(echo abc)
     assert not same <(echo "abc") <(echo bcd)
     echo 'abc' > "/tmp/some_file"
