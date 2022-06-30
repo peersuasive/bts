@@ -409,6 +409,7 @@ _run_tests() {
             echo "--- [$( ((rr)) && echo $FAILED || echo $OK)]: $t --------"
             exec 1>&8
             exec 2>&9
+            exec 7>&-
             exit $rr
         ); r=$?
         ((r)) && prev_failed=1 || prev_failed=0
