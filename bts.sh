@@ -137,11 +137,11 @@ todo() {
 }
 
 dbg() {
-    ((!QUIET && DEBUG)) && echo -e "[DBG] $@" >&2
+    ((!QUIET && DEBUG)) && echo -e "${INV}${BOLD}[DBG]${RST} ${BOLD}${WHITE}$@${RST}" >&2
     return 0
 }
 DBG() {
-    ((DEBUG_BTS)) && echo -e "[BTS] $@" >&2
+    ((DEBUG_BTS)) && echo -e "${INV}${BOLD}${BLUE}[BTS]${RST} ${BOLD}${WHITE}$@${RST}" >&2
     return 0
 }
 trace() {
