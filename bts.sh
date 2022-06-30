@@ -134,6 +134,7 @@ todo() {
 
 dbg() {
     ((!QUIET && DEBUG)) && echo -e "[DBG] $@" >&2
+    return 0
 }
 trace() {
     echo "$@" >&2
@@ -199,7 +200,7 @@ assert() {
                 } || r=1;;
         SAME)
             [[ -e "$exp" ]] && exp_f="$exp"||:; [[ -e "$cmp" ]] && cmp_f="$cmp"||:;
-            cmp_diff=$(diff -u ${exp_f:-<(echo "$1")} ${cmp_f:-<(echo "$2")} 2>/dev/null) && r=0 || r=1;;
+            cmp_diff=$(diff -u ${exp_f:-<(echo "$2")} ${cmp_f:-<(echo "$1")} 2>/dev/null) && r=0 || r=1;;
     esac
     local old_r=$r
     ((NOT)) && r=$((!r))
