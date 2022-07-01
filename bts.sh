@@ -41,12 +41,14 @@ Utils (functions):
     ok       exit test immediatly with a success (OK) message
     todo     exit test immediatly with a TODO message; this is accounted as a failure but notified as an unimplemented test also
     assert [true|false|equals|same] <expression>
-        true    assert evaluation is true
-        false   assert evaluation if false
-        equals  assert left string equals expected right string
-        same    assert left string or file contents equals expected right string or file contents
-        same~   assert left string or unordered file contents equals expected right string or unordered file contents
-        exists  assert contents exist
+        true     assert evaluation is true
+        false    assert evaluation if false
+        equals   assert left string equals expected right string
+        same     assert left string or file contents equals expected right string or file contents
+        same~    assert left string or unordered file contents equals expected right string or unordered file contents
+        samecol  compare same column from two files; column number and separator can be passed after files (default: column 1, comma (;) as separator)
+        samecol~ compare same column from two unordered files; column number and separator can be passed after files (default: column 1, comma (;) as separator)
+        exists   assert contents exist
     @should_fail <expression>
                 assert next evaluation fails as expected
 Debug/trace:
@@ -191,7 +193,7 @@ assert() {
     local a="$1"; shift
     local res1 res2 r
     case "${a^^}" in
-        TRUE|FALSE|EQUALS|SAME|SAME~|EXISTS|FILE~|FILE) a=${a^^};;
+        TRUE|FALSE|EQUALS|SAME|SAME~|EXISTS|FILE~|FILE|SAMECOL|SAMECOL~) a=${a^^};;
         *) echo "unknown assertion '$a' (${sf}:${FUNCNAME[1]}:${BASH_LINENO[0]})"; return $r_fail;;
     esac
     set -- "$@"
@@ -225,6 +227,17 @@ assert() {
         SAME~)
             [[ -e "$exp" ]] && exp_f="$exp"||:; [[ -e "$cmp" ]] && cmp_f="$cmp"||:;
             cmp_diff=$(diff -u <(sort ${exp_f:-<(echo "$2")}) <(sort ${cmp_f:-<(echo "$1")}) 2>/dev/null) && r=0 || r=1;;
+        SAMECOL)
+            local col="${3:-1}"
+            local sep="${4:-;}"
+            [[ -e "$exp" ]] && exp_f="$exp"||:; [[ -e "$cmp" ]] && cmp_f="$cmp"||:;
+            cmp_diff=$(diff -u <( awk -F"${sep}" '{print $'${col}'}' ${exp_f:-<(echo "$2")} ) <( awk -F"${sep}" '{print $'${col}'}' ${cmp_f:-<(echo "$1")} ) 2>/dev/null) && r=0 || r=1;;
+        SAMECOL~)
+            local col="${3:-1}"
+            local sep="${4:-;}"
+            [[ -e "$exp" ]] && exp_f="$exp"||:; [[ -e "$cmp" ]] && cmp_f="$cmp"||:;
+            cmp_diff=$(diff -u <( awk -F"${sep}" '{print $'${col}'}' <( sort -k${col} ${exp_f:-<(echo "$2")} ) ) <( awk -F"${sep}" '{print $'${col}'}' <( sort -k${col} ${cmp_f:-<(echo "$1")} ) ) 2>/dev/null) && r=0 || r=1;;
+
     esac
     local old_r=$r
     ((NOT)) && r=$((!r))
@@ -244,7 +257,7 @@ assert() {
         local c="$( sed -n "${line}p" "$f" | sed -e 's/^[\t ]*\(.*\)$/\1/g')"
         echo "-> $c"
         echo "=> assert ${is_not}${a} '${cmp}' ${exp+'$exp'}"
-        [[ "$a" == SAME || "$a" == SAME~ ]] && {
+        [[ "$a" == SAME || "$a" == SAME~ || "$a" == SAMECOL || "$a" == SAMECOL~ ]] && {
             echo
             echo -e "${YELLOW}expected${RST}${cmp_f:+ (from '$cmp_f')}:\n----------\n$(cat ${cmp_f:-<(echo "$cmp")})\n----------"
             echo -e "${YELLOW}got${RST}${exp_f:+ (from '$exp_f')}:\n----------\n$(cat ${exp_f:-<(echo $exp)})\n----------"
