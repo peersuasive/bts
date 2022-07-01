@@ -45,6 +45,7 @@ Utils (functions):
         false   assert evaluation if false
         equals  assert left string equals expected right string
         same    assert left string or file contents equals expected right string or file contents
+        same~   assert left string or unordered file contents equals expected right string or unordered file contents
         exists  assert contents exist
     @should_fail <expression>
                 assert next evaluation fails as expected
