@@ -379,8 +379,29 @@ _run_tests() {
                 }
                 local err_line=$(sed -n ${line}p "$f"|xargs|tr -d $'\n')
                 
-                echo -e "Failed at ${sf}:${func}:${fline}\n: ${err_line:-$BASH_COMMAND}\n(--> [${FUNCNAME[@]}, ${BASH_LINENO[@]}])"
+                trap - ERR
+
+                ## teardown & reset, anyway
+                [[ -n "$teardown" ]] && {
+                    $teardown || { echo "WARN: failed to execute '$teardown'!"; ((!rr)) && rr=$r_warn; }
+                }
+                ((_is_last)) && {
+                    [[ -n "$reset" ]] && {
+                        $reset || { echo "WARN: failed to execute '$reset'!"; ((!rr)) && rr=$r_warn; }
+                    }
+                }
+                echo "--- [$( ((rr)) && echo $FAILED || echo $OK)]: $t --------"
+
+                echo
+                echo -e "${BOLD}${BLUE}-- traces ------------${RST}"
+                echo -e "${YELLOWB}   ${BLACK}Failed at ${sf}:${func}:${fline}\n   : ${err_line:-$BASH_COMMAND}\n   (--> [${FUNCNAME[@]}, ${BASH_LINENO[@]}])${RST}"
                 DBG "TRAP TO RETURN $retval"
+
+
+                exec 1>&8
+                exec 2>&9
+                exec 7>&-
+
                 return $retval
             }
             trap '_trap_err' ERR
@@ -409,9 +430,9 @@ _run_tests() {
 
             [[ -n "$setup" ]] && { $setup || exit $r_fatal2; }
 
-            $t && rr=0 || rr=1
+            $t; rr=$?
 
-            [[ -n "$teardown" ]] && { 
+            [[ -n "$teardown" ]] && {
                 $teardown || { echo "WARN: failed to execute '$teardown'!"; ((!rr)) && rr=$r_warn; }
             }
             ((_is_last)) && {
