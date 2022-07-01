@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 
 set -o pipefail
+set -u
+
 
 DEBUG=${DEBUG:-0}
 DEBUG_BTS=${DEBUG_BTS:-0}
@@ -130,15 +132,15 @@ echo_c() {
 }
 
 fail() {
-    [[ -n "$1" ]] && echo "[$FAILED] $@"
+    [[ -n "${1:-}" ]] && echo "[$FAILED] $@"
     return $r_fail
 }
 ok() {
-    [[ -n "$1" ]] && echo "[$OK] $@"
+    [[ -n "${1:-}" ]] && echo "[$OK] $@"
     return $r_ok
 }
 fatal() {
-    [[ -n "$1" ]] && echo "[$FATAL] $@" >&2
+    [[ -n "${1:-}" ]] && echo "[$FATAL] $@" >&2
     return $r_fatal
 }
 todo() {
@@ -194,7 +196,7 @@ assert() {
     set -- "$@"
     [[ -z "${@+z}" ]] && echo_c SYNTAX "Missing evaluation!" && exit 1
     local cmp="$1"
-    local exp="$2"; [[ ! "${2+x}" == "x" ]] && unset exp
+    local exp="${2:-}"; [[ ! "${2+x}" == "x" ]] && unset exp
     local cmp_f exp_f
     local cmp_diff
     case $a in
@@ -324,13 +326,13 @@ _run_tests() {
     ((!total)) && echo "No test found" && return $r_ok
     echo "Executing $total test$s"
     echo
-    local n nn
+    local n=0; local nn=0
     local _preset_executed=0
     local _end=$(( ${#l_tests[@]} ))
     local _cur=0
     local _is_last=0
     for t in ${l_tests[@]}; do
-        ((++cur >= _end)) && _is_last=1
+        ((++_cur >= _end)) && _is_last=1
         ((++n)); nn=$(printf "%02d" "$n")
         local ts=${t##*test_}; ts=${ts//__/: }; ts=${ts//_/ }
         local log_file="${results}/${nn}.${t}.log"
@@ -381,14 +383,14 @@ _run_tests() {
 
                 ## teardown & reset, anyway
                 [[ -n "$teardown" ]] && {
-                    $teardown || { echo "WARN: failed to execute '$teardown'!"; ((!rr)) && rr=$r_warn; }
+                    $teardown || { echo "WARN: failed to execute '$teardown'!"; ((!retval)) && retval=$r_warn; }
                 }
                 ((_is_last)) && {
                     [[ -n "$reset" ]] && {
-                        $reset || { echo "WARN: failed to execute '$reset'!"; ((!rr)) && rr=$r_warn; }
+                        $reset || { echo "WARN: failed to execute '$reset'!"; ((!retval)) && retval=$r_warn; }
                     }
                 }
-                echo "--- [$( ((rr)) && echo $FAILED || echo $OK)]: $t --------"
+                echo "--- [$( ((retval)) && echo $FAILED || echo $OK)]: $t --------"
 
                 echo
                 local err_line=$(sed -n ${line}p "$f"|xargs|tr -d $'\n');
