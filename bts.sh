@@ -196,7 +196,7 @@ assert() {
     esac
     set -- "$@"
     [[ -z "${@+z}" ]] && echo_c SYNTAX "Missing evaluation!" && exit 1
-    local cmp="$1"
+    local cmp="${1:-}"
     local exp="${2:-}"; [[ ! "${2+x}" == "x" ]] && unset exp
     local cmp_f exp_f
     local cmp_diff
