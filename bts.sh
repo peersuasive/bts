@@ -399,7 +399,7 @@ _run_tests() {
 
             [[ -n "$setup" ]] && { $setup || exit $r_fatal2; }
 
-            $t; rr=$?
+            $t && rr=0 || rr=1
 
             [[ -n "$teardown" ]] && { 
                 $teardown || { echo "WARN: failed to execute '$teardown'!"; ((!rr)) && rr=$r_warn; }
