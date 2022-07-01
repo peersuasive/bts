@@ -118,6 +118,7 @@ exp_vars+=( OK FAILED FATAL TODO QUIET DEBUG )
 r_ok=0
 r_fail=1
 r_fatal=2
+r_fatal2=5
 r_warn=3
 r_todo=4
 exp_vars+=( r_ok r_fail r_fatal r_warn r_todo )
