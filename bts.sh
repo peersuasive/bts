@@ -3,7 +3,6 @@
 set -o pipefail
 set -u
 
-
 DEBUG=${DEBUG:-0}
 DEBUG_BTS=${DEBUG_BTS:-0}
 
@@ -314,14 +313,14 @@ _run_tests() {
     local sf="${f##*/}"
     local l_t="$2"
     local l_tests=( ${l_t:-${tests[@]}} )
-    local setup="${tests_ext[setup]}"
-    local teardown="${tests_ext[teardown]}"
-    local preset="${tests_ext[preset]}"
-    local reset="${tests_ext[reset]}"
+    local setup="${tests_ext[setup]:-}"
+    local teardown="${tests_ext[teardown]:-}"
+    local preset="${tests_ext[preset]:-}"
+    local reset="${tests_ext[reset]:-}"
 
     failed=0
     unimplemented=0
-    total=${#l_tests[@]}; local s; ((total>1)) && s='s'
+    total=${#l_tests[@]}; local s=""; ((total>1)) && s='s'
 
     ((!total)) && echo "No test found" && return $r_ok
     echo "Executing $total test$s"
