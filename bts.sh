@@ -377,8 +377,6 @@ _run_tests() {
                     fline="[UNDEF]"
                     func="$t"
                 }
-                local err_line=$(sed -n ${line}p "$f"|xargs|tr -d $'\n')
-                
                 trap - ERR
 
                 ## teardown & reset, anyway
@@ -393,10 +391,14 @@ _run_tests() {
                 echo "--- [$( ((rr)) && echo $FAILED || echo $OK)]: $t --------"
 
                 echo
+                local err_line=$(sed -n ${line}p "$f"|xargs|tr -d $'\n');
+                local trc="(--> [${FUNCNAME[@]}, ${BASH_LINENO[@]}])"
+                local t=( "Failed at ${sf}:${func}:${fline}" ": ${err_line:-$BASH_COMMAND}" "$trc" "TRAP TO RETURN $retval" )
+                local max=0; for l in "${t[@]}"; do s=${#l}; (( s > max )) && max=$s; done; ((max+=4))
                 echo -e "${BOLD}${BLUE}-- traces ------------${RST}"
-                echo -e "${YELLOWB}   ${BLACK}Failed at ${sf}:${func}:${fline}\n   : ${err_line:-$BASH_COMMAND}\n   (--> [${FUNCNAME[@]}, ${BASH_LINENO[@]}])${RST}"
-                DBG "TRAP TO RETURN $retval"
-
+                for l in "${t[@]}"; do
+                    printf "${YELLOWB}    ${BLACK}%-${max}s${RST}\n" "$l"
+                done
 
                 exec 1>&8
                 exec 2>&9
