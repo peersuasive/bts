@@ -67,15 +67,25 @@ _set_colors() {
     declare -gr RST='\033[0m'
     declare -gr BLINK='\033[5m'
     declare -gr INV='\033[7m'
-    declare -gr BLUE='\033[34m'
+    declare -gr UND='\033[4m'
+    declare -gr BLACK='\033[30m'
     declare -gr RED='\033[31m'
     declare -gr GREEN='\033[32m'
     declare -gr YELLOW='\033[33m'
+    declare -gr BLUE='\033[34m'
     declare -gr MAGENTA='\033[35m'
-    declare -gr WHITE='\033[97m'
     declare -gr CYAN='\033[36m'
-    declare -gr UND='\033[4m'
-    exp_vars+=( BOLD RST BLINK INV BLUE RED GREEN YELLOW MAGENTA WHITE CYAN UND )
+    declare -gr GRAY='\033[37m'
+    declare -gr WHITE='\033[97m'
+    declare -gr BLACKB='\033[0;40m'
+    declare -gr REDB='\033[0;41m'
+    declare -gr GREENB='\033[0;42m'
+    declare -gr YELLOWB='\033[0;43m'
+    declare -gr BLUEB='\033[0;44m'
+    declare -gr PURPLEB='\033[0;45m'
+    declare -gr CYANB='\033[0;46m'
+    declare -gr GRAYB='\033[0;47m'
+    exp_vars+=( BOLD RST BLINK INV UND BLACK RED GREEN YELLOW BLUE MAGENTA WHITE CYAN GRAY WHITE BLACKB REDB GREENB YELLOWB BLUEB PURPLEB CYANB GRAYB )
 
     if which colordiff 1>/dev/null 2>/dev/null; then
         diff_=colordiff
