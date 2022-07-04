@@ -109,6 +109,39 @@ assert__same_unordered() {
     assert not same~ "$tmp_dir/some_file" "$tmp_dir/some_other_file"
 }
 
+assert_samecol() {
+    assert samecol "one" "one"
+    assert samecol "one;two" "one;two" 1
+    assert samecol "one two" "one two" 2 ' '
+    assert samecol "two;three" "two;four" 1
+    assert not samecol "two;three" "two;four" 2
+    assert samecol "one two" "one four" 1 ' '
+    assert not samecol "one;two" "one;four" 1 '-'
+
+    echo -e "one;two;three\none;four;five\none;six;seven" > "$tmp_dir"/cmp1
+    echo -e "one;aaa;bbb\none;ccc;ddd\none;eee;fff" > "$tmp_dir"/cmp2
+
+    assert samecol "$tmp_dir"/cmp1 "$tmp_dir"/cmp2 1 ';'
+    assert samecol "$tmp_dir"/cmp1 "$tmp_dir"/cmp2 1
+    assert samecol "$tmp_dir"/cmp1 "$tmp_dir"/cmp2
+}
+
+assert_samecol_unsorted() {
+    assert samecol~ "one" "one"
+    assert samecol~ "one;two" "one;two" 1
+    assert samecol~ "one two" "one two" 2 ' '
+    assert samecol~ "two;three" "two;four" 1
+    assert not samecol~ "two;three" "two;four" 2
+    assert samecol~ "one two" "one four" 1 ' '
+    assert not samecol~ "one;two" "one;four" 1 '-'
+
+    echo -e "aaa;zzz\nccc;xxx;\niii;yyy\nbbb;www" > "$tmp_dir/cmp1"
+    echo -e "bbb;zzz\naaa;xxx;\nccc;yyy\niii;www" > "$tmp_dir/cmp2"
+
+    assert samecol~ "$tmp_dir"/cmp1 "$tmp_dir"/cmp2 1 ';'
+    assert samecol~ "$tmp_dir"/cmp1 "$tmp_dir"/cmp2 1
+    assert samecol~ "$tmp_dir"/cmp1 "$tmp_dir"/cmp2
+}
 
 assert_assert_exists() {
     assert exists "here I am"
