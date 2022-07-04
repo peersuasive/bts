@@ -29,6 +29,7 @@ Options:
     -l|--list|--list-tests  list available test without executing
     -t|--tests-dir <dir>    look for tests in 'dir' instead of 'tests'
     -D|--DEBUG              debug BTS
+    -dd|--extra-debug       enable extra dbg traces (typically, turns 'set -x' on)
     -d|--debug              enable dbg traces
     
 
@@ -560,6 +561,7 @@ while (($#)); do
         -v|--verbose) SHOW_FAILED=1;;
         -C|--no-color) NO_COLORS=1;;
         -c|--color) NO_COLORS=0;;
+        -dd|--extra-debug) DEBUG=2;;
         -d|--debug) DEBUG=1;;
         -D|--DEBUG) DEBUG_BTS=1;;
         -q|--quiet) QUIET=1; SHOW_FAILED=0;;
