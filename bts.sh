@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# vim: ts=4 sts=4 sw=4 expandtab
 
 set -o pipefail
 set -u
@@ -50,6 +51,8 @@ Utils (functions):
         samecol  compare same column from two files; column number and separator can be passed after files (default: column 1, comma (;) as separator)
         samecol~ compare same column from two unordered files; column number and separator can be passed after files (default: column 1, comma (;) as separator)
         exists   assert contents exist
+    asset <asset[.gz]> [dest-dir|dest-file]
+                 try its best to find file in 'TEST_DIR/assets/[test_name]...' and send it to destination or stdout
     @should_fail <expression>
                 assert next evaluation fails as expected
 Debug/trace:
@@ -163,6 +166,35 @@ DBG() {
 trace() {
     echo "$@" >&2
 }
+
+asset() {
+    local _a="${1:-Missing asset name}"
+    local d="${2:-}"
+    local a
+    a=$(find "$TEST_DIR/assets/${__bts_this}" -maxdepth 1 -regextype egrep \
+        -regex "$TEST_DIR/assets/${__bts_this}/${t}[_]*${_a}(.gz)?" \
+        -or \
+        -regex "$TEST_DIR/assets/${__bts_this}/${_a}(.gz)?" | grep '.' \
+        || find "$TEST_DIR/assets" -maxdepth 1 -regextype egrep \
+        -regex "$TEST_DIR/assets/${t}[_]*${_a}(.gz)?" \
+        -or \
+        -regex "$TEST_DIR/assets/${_a}(.gz)?" | grep '.'
+        ) || {
+            echo "Can't find asset '$_a' in '$TEST_DIR/assets/${__bts_this}' nor '$TEST_DIR/assets'"
+            return 1
+        }
+    local unc=cat
+    [[ "${a}" =~ \.gz$ ]] && unc=zcat
+
+    if [[ -d "$d" ]]; then
+        $unc "$a" > "$d/${_a%.gz}"
+    elif [[ -z "$d" ]]; then
+        $unc $a
+    else
+        $unc "$a" > "$d"
+    fi
+}
+
 exp_cmds+=( fail ok fatal todo dbg trace )
 
 export_cmds() {
@@ -434,9 +466,9 @@ _run_tests() {
 
             tmp_sh=$(mktemp -uq -p /tmp -t nris.XXXXXXXXXX)
             cat "$f" > "$tmp_sh"
-            this="$(basename $( readlink -f "$f" ))"; this="${this%.sh}"
-            sed -ri 's;%\{this\};'"${this}"';g;s;%\{this_test\};'"${t}"';g' "$tmp_sh"
-            sed -ri 's;%\{assets\};'"${TEST_DIR}/assets/${this}"';g' "$tmp_sh"
+            __bts_this="$(basename $( readlink -f "$f" ))"; __bts_this="${__bts_this%.sh}"
+            sed -ri 's;%\{this\};'"${__bts_this}"';g;s;%\{this_test\};'"${t}"';g' "$tmp_sh"
+            sed -ri 's;%\{assets\};'"${TEST_DIR}/assets/${__bts_this}"';g' "$tmp_sh"
             source "$tmp_sh"
             \rm -f "$tmp_sh"
             ((!_preset_executed)) && {
