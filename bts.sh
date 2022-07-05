@@ -436,6 +436,7 @@ _run_tests() {
             cat "$f" > "$tmp_sh"
             this="$(basename $( readlink -f "$f" ))"; this="${this%.sh}"
             sed -ri 's;%\{this\};'"${this}"';g;s;%\{this_test\};'"${t}"';g' "$tmp_sh"
+            sed -ri 's;%\{assets\};'"${TEST_DIR}/assets/${this}"';g' "$tmp_sh"
             source "$tmp_sh"
             \rm -f "$tmp_sh"
             ((!_preset_executed)) && {
