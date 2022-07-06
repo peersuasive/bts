@@ -172,22 +172,23 @@ asset() {
     local d="${2:-}"
     local a
     a=$(find "$TEST_DIR/assets/${__bts_this}" -maxdepth 1 -regextype egrep \
-        -regex "$TEST_DIR/assets/${__bts_this}/${t}[_]*${_a}(.gz)?" \
+        -regex "$TEST_DIR/assets/${__bts_this}/${t}[_.]+${_a}(.gz|.bz2)?" \
         -or \
-        -regex "$TEST_DIR/assets/${__bts_this}/${_a}(.gz)?" | grep '.' \
+        -regex "$TEST_DIR/assets/${__bts_this}/${_a}(.gz|.bz2)?" | grep '.' \
         || find "$TEST_DIR/assets" -maxdepth 1 -regextype egrep \
-        -regex "$TEST_DIR/assets/${t}[_]*${_a}(.gz)?" \
+        -regex "$TEST_DIR/assets/${t}[_]*${_a}(.gz|.bz2)?" \
         -or \
-        -regex "$TEST_DIR/assets/${_a}(.gz)?" | grep '.'
+        -regex "$TEST_DIR/assets/${_a}(.gz|.bz2)?" | grep '.'
         ) || {
             echo "Can't find asset '$_a' in '$TEST_DIR/assets/${__bts_this}' nor '$TEST_DIR/assets'"
             return 1
         }
     local unc=cat
-    [[ "${a}" =~ \.gz$ ]] && unc=zcat
+    [[ "${a}" =~ \.gz$ ]] && unc=zcat && ext=.gz
+    [[ "${a}" =~ \.bz2$ ]] && unc=bzcat && ext=.bz2
 
     if [[ -d "$d" ]]; then
-        $unc "$a" > "$d/${_a%.gz}"
+        $unc "$a" > "$d/${_a%${ext}}"
     elif [[ -z "$d" ]]; then
         $unc $a
     else
