@@ -51,8 +51,9 @@ Utils (functions):
         samecol  compare same column from two files; column number and separator can be passed after files (default: column 1, comma (;) as separator)
         samecol~ compare same column from two unordered files; column number and separator can be passed after files (default: column 1, comma (;) as separator)
         exists   assert contents exist
-    asset <asset[.gz]> [dest-dir|dest-file]
-                 try its best to find file in 'TEST_DIR/assets/[test_name]...' and send it to destination or stdout
+    asset [-n] <asset[.gz|bz2]> [dest-dir|dest-file]
+        try its best to find file in 'TEST_DIR/assets/[test_name]...' and send it to destination or stdout
+        -n       pass full path to ressource, instead of content
     @should_fail <expression>
                 assert next evaluation fails as expected
 Debug/trace:
@@ -168,6 +169,8 @@ trace() {
 }
 
 asset() {
+    local filename_only=0
+    [[ "$1" == -n ]] && filename_only=1 && shift
     local _a="${1:-Missing asset name}"
     local d="${2:-}"
     local a
@@ -183,6 +186,7 @@ asset() {
             echo "Can't find asset '$_a' in '$TEST_DIR/assets/${__bts_this}' nor '$TEST_DIR/assets'"
             return 1
         }
+    ((filename_only)) && echo "$a" && return 0
     local unc=cat
     [[ "${a}" =~ \.gz$ ]] && unc=zcat && ext=.gz
     [[ "${a}" =~ \.bz2$ ]] && unc=bzcat && ext=.bz2
