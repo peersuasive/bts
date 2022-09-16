@@ -60,6 +60,8 @@ Utils (functions):
 
 Utils (class)
     @load                       load a file relative to test dir; useful to load common tests or functions, for instance
+    mock_funcs/__mock_funcs     load mockup functions; syntax: mockup_function[:alias]; ex., __mock_funcs='__crontab:crontab'
+                                this is mainly usefull loading environment before calling shell command than bash, for eg., ksh
 
 Other
     .btsignore  bts will ignore _tests_ declared in this file -- one per line, no glob or regex; reminder: bts ignores anything not matching [0-9]*.sh anyway
@@ -238,6 +240,19 @@ export_utils() {
     for c in ${exp_utils[@]}; do
         typeset -f "$c"
     done
+}
+
+mock_funcs() {
+    if [[ -n "$__mock_funcs" ]]; then
+        for fn in "$__mock_funcs"; do
+            local fn_name=${fn%%:*}; local fn_alias=${fn##*:}
+            typeset -f "$fn_name"
+            if [[ "$fn_alias" != "$fn_name" ]]; then
+                echo "alias $fn_alias='$fn_name'"
+                echo "export $fn_alias"
+            fi
+        done
+    fi
 }
 
 export SHOULD=0
