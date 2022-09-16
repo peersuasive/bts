@@ -53,6 +53,9 @@ Utils (functions):
 Utils (class)
     @load                       load a file relative to test dir; useful to load common tests or functions, for instance
 
+Other
+    .btsignore  bts will ignore _tests_ declared in this file -- one per line, no glob or regex; reminder: bts ignores anything not matching [0-9]*.sh anyway
+
 Debug/trace:
     trace    display message in output (not logged)
     dbg      display message in output (logged)

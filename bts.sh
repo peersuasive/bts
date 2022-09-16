@@ -61,6 +61,9 @@ Utils (functions):
 Utils (class)
     @load                       load a file relative to test dir; useful to load common tests or functions, for instance
 
+Other
+    .btsignore  bts will ignore _tests_ declared in this file -- one per line, no glob or regex; reminder: bts ignores anything not matching [0-9]*.sh anyway
+
 Debug/trace:
     trace    display message in output (logged)
     dbg      display a dbg message in output (logged)
@@ -582,7 +585,14 @@ run() {
             echo $l
         done <bts.env)
     fi
+    local tests_to_run=()
+    local tests_to_ignore=( $( [[ -f "$TEST_DIR/.btsignore" ]] && cat "$TEST_DIR/.btsignore" || echo "" ) )
+    local tests_to_ignore="${tests_to_ignore[@]}"
     for f in ${test_list}; do
+        [[ " $tests_to_ignore " =~ \ ${f##*/}\  ]] && continue
+        tests_to_run+=( "$f" )
+    done
+    for f in ${tests_to_run[@]}; do
         local ff="$f"
         local t=''
         [[ "$f" =~ ^([^:]+):(.+)$ ]] && {
