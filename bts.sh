@@ -221,8 +221,11 @@ exp_cmds+=( fail ok fatal todo dbg trace )
 exp_utils+=( @load )
 
 export_cmds() {
-    for c in ${exp_cmds[@]} 'setup' 'teardown'; do
+    for c in 'setup' 'teardown'; do
         typeset -f "$c"
+    done
+    for c in ${exp_cmds[@]}; do
+        typeset -f "$c" | sed -e 's;'"${c}"' ();bts_'"${c}"' ();'
     done
     typeset vars=""
     for v in ${exp_vars[@]}; do
