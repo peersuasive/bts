@@ -79,7 +79,7 @@ exp_utils=()
 ## ----------------------- lib
 declare RST BLINK INV BLUE RED GREEN YELLOW MAGENTA WHITE CYAN
 diff_=$(which diff) || { fatal "Can't find 'diff' command!"; exit 1; }
-diff() {
+bts_diff() {
     $diff_ "$@"
 }
 _set_colors() {
@@ -110,7 +110,7 @@ _set_colors() {
     if which colordiff 1>/dev/null 2>/dev/null; then
         diff_=colordiff
     else
-        diff() {
+        bts_diff() {
             typeset r=0
             typeset res
             res="$( $diff_ "$@" | sed -re "s;^([+].*)$;\\${GREEN}\1\\${RST};;s;^([-].*)$;\\${RED}\1\\${RST};" )"
@@ -120,7 +120,7 @@ _set_colors() {
         }
     fi
 }
-exp_cmds+=( diff )
+exp_cmds+=( bts_diff )
 
 OK=OK
 FAILED=FAILED
@@ -227,7 +227,7 @@ export_cmds() {
         typeset -f "$c"
     done
     for c in ${exp_cmds[@]}; do
-        typeset -f "$c" | sed -e 's;'"${c}"' ();bts_'"${c}"' ();'
+        typeset -f "$c" | sed -e 's;'"${c#bts_}"' ();bts_'"${c}"' ();'
     done
     typeset vars=""
     for v in ${exp_vars[@]}; do
@@ -308,20 +308,20 @@ assert() {
             ;;
         SAME)
             [[ -e "${exp:-}" ]] && exp_f="$exp"||:; [[ -e "$cmp" ]] && cmp_f="$cmp"||:;
-            cmp_diff=$(diff -u ${exp_f:-<(echo -e "$2")} ${cmp_f:-<(echo -e "$1")} 2>/dev/null) && r=0 || r=1;;
+            cmp_diff=$(bts_diff -u ${exp_f:-<(echo -e "$2")} ${cmp_f:-<(echo -e "$1")} 2>/dev/null) && r=0 || r=1;;
         SAME~)
             [[ -e "${exp:-}" ]] && exp_f="$exp"||:; [[ -e "$cmp" ]] && cmp_f="$cmp"||:;
-            cmp_diff=$(diff -u <(sort ${exp_f:-<(echo -e "$2")}) <(sort ${cmp_f:-<(echo -e "$1")}) 2>/dev/null) && r=0 || r=1;;
+            cmp_diff=$(bts_diff -u <(sort ${exp_f:-<(echo -e "$2")}) <(sort ${cmp_f:-<(echo -e "$1")}) 2>/dev/null) && r=0 || r=1;;
         SAMECOL)
             local col="${3:-1}"
             local sep="${4:-;}"
             [[ -e "${exp:-}" ]] && exp_f="$exp"||:; [[ -e "$cmp" ]] && cmp_f="$cmp"||:;
-            cmp_diff=$(diff -u <( awk -F"${sep}" '{print $'${col}'}' ${exp_f:-<(echo -e "$2")} ) <( awk -F"${sep}" '{print $'${col}'}' ${cmp_f:-<(echo -e "$1")} ) 2>/dev/null) && r=0 || r=1;;
+            cmp_diff=$(bts_diff -u <( awk -F"${sep}" '{print $'${col}'}' ${exp_f:-<(echo -e "$2")} ) <( awk -F"${sep}" '{print $'${col}'}' ${cmp_f:-<(echo -e "$1")} ) 2>/dev/null) && r=0 || r=1;;
         SAMECOL~)
             local col="${3:-1}"
             local sep="${4:-;}"
             [[ -e "${exp:-}" ]] && exp_f="$exp"||:; [[ -e "$cmp" ]] && cmp_f="$cmp"||:;
-            cmp_diff=$(diff -u <( awk -F"${sep}" '{print $'${col}'}' <( sort -k${col} ${exp_f:-<(echo -e "$2")} ) ) <( awk -F"${sep}" '{print $'${col}'}' <( sort -k${col} ${cmp_f:-<(echo -e "$1")} ) ) 2>/dev/null) && r=0 || r=1;;
+            cmp_diff=$(bts_diff -u <( awk -F"${sep}" '{print $'${col}'}' <( sort -k${col} ${exp_f:-<(echo -e "$2")} ) ) <( awk -F"${sep}" '{print $'${col}'}' <( sort -k${col} ${cmp_f:-<(echo -e "$1")} ) ) 2>/dev/null) && r=0 || r=1;;
 
     esac
     local old_r=$r
