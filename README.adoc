@@ -21,6 +21,10 @@ Options:
     -qq|--very-quiet
     -s|--silent             don't show any output at all
     -l|--list|--list-tests  list available test without executing
+    -t|--tests-dir <dir>    look for tests in 'dir' instead of 'tests'
+    -D|--DEBUG              debug BTS
+    -dd|--extra-debug       enable extra dbg traces (typically, turns 'set -x' on)
+    -d|--debug              enable dbg traces
 
 Utils (functions):
     setup    run before each test
@@ -30,11 +34,18 @@ Utils (functions):
     fail     exit test immediatly with a failure (FAIL) message
     ok       exit test immediatly with a success (OK) message
     todo     exit test immediatly with a TODO message; this is accounted as a failure but notified as an unimplemented test also
-    assert [true|false|equals|same] <expression>
-        true    assert evaluation is true
-        false   assert evaluation if false
-        equals  assert left string equals expected right string
-        same    assert left string or file contents equals expected right string or file contents
+    assert [true|false|equals|same|empty] <expression>
+        true     assert evaluation is true
+        false    assert evaluation if false
+        equals   assert left string equals expected right string
+        same     assert left string or file contents equals expected right string or file contents
+        same~    assert left string or unordered file contents equals expected right string or unordered file contents
+        samecol  compare same column from two files; column number and separator can be passed after files (default: column 1, comma (;) as separator)
+        samecol~ compare same column from two unordered files; column number and separator can be passed after files (default: column 1, comma (;) as separator)
+        exists   assert contents exist
+    asset [-n] <asset[.gz|bz2]> [dest-dir|dest-file]
+        try its best to find file in 'TEST_DIR/assets/[test_name]...' and send it to destination or stdout
+        -n       pass full path to ressource, instead of content
     @should_fail <expression>
                 assert next evaluation fails as expected
                 
