@@ -56,6 +56,10 @@ Utils (functions):
         -n       pass full path to ressource, instead of content
     @should_fail <expression>
                 assert next evaluation fails as expected
+
+Utils (class)
+    @load                       load a file relative to test dir; useful to load common tests or functions, for instance
+
 Debug/trace:
     trace    display message in output (logged)
     dbg      display a dbg message in output (logged)
@@ -64,6 +68,7 @@ EOU
 
 exp_vars=()
 exp_cmds=()
+exp_utils=()
 
 ## ----------------------- lib
 declare RST BLINK INV BLUE RED GREEN YELLOW MAGENTA WHITE CYAN
@@ -202,6 +207,15 @@ asset() {
 
 exp_cmds+=( fail ok fatal todo dbg trace )
 
+@load() {
+    local f="$1"; shift
+    local args="${@:-}"
+    local abs_path="$(readlink -m "${__BTS_TEST_DIR}/$f")"
+    set -- "$args"
+    source "$abs_path"
+}
+exp_utils+=( @load )
+
 export_cmds() {
     for c in ${exp_cmds[@]} 'setup' 'teardown'; do
         typeset -f "$c"
@@ -211,6 +225,12 @@ export_cmds() {
         vars+="export $v=\"${!v}\";"
     done
     echo "${vars%;}"
+}
+
+export_utils() {
+    for c in ${exp_utils[@]}; do
+        typeset -f "$c"
+    done
 }
 
 export SHOULD=0
@@ -331,10 +351,12 @@ _get_test() {
     tests=()
     tests_i=()
     tests_ext=()
+
     ## evaluate script first
     ( source "$t" 1>/dev/null ) || return 1
     local xxx
     xxx=$(cat <<EOS|bash
+    $(export_utils)
     shopt -s extdebug
     source "$t" 1>/dev/null || exit 1
     declare -A ext
@@ -469,9 +491,9 @@ _run_tests() {
                 exit $r_fatal
             }
 
-            tmp_sh=$(mktemp -uq -p /tmp -t nris.XXXXXXXXXX)
-            cat "$f" > "$tmp_sh"
             __bts_this="$(basename $( readlink -f "$f" ))"; __bts_this="${__bts_this%.sh}"
+            tmp_sh="$TEST_DIR/.${__bts_this}_bts.sh"
+            cat "$f" > "$tmp_sh"
             sed -ri 's;%\{this\};'"${__bts_this}"';g;s;%\{this_test\};'"${t}"';g' "$tmp_sh"
             sed -ri 's;%\{assets\};'"${TEST_DIR}/assets/${__bts_this}"';g' "$tmp_sh"
             source "$tmp_sh"

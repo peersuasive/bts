@@ -37,6 +37,10 @@ Utils (functions):
         same    assert left string or file contents equals expected right string or file contents
     @should_fail <expression>
                 assert next evaluation fails as expected
+                
+Utils (class)
+    @load                       load a file relative to test dir; useful to load common tests or functions, for instance
+
 Debug/trace:
     trace    display message in output (not logged)
     dbg      display message in output (logged)
