@@ -42,10 +42,11 @@ Utils (functions):
     fail     exit test immediatly with a failure (FAIL) message
     ok       exit test immediatly with a success (OK) message
     todo     exit test immediatly with a TODO message; this is accounted as a failure but notified as an unimplemented test also
-    assert [true|false|equals|same] <expression>
+    assert [true|false|equals|same|empty] <expression>
         true     assert evaluation is true
         false    assert evaluation if false
         equals   assert left string equals expected right string
+        empty    assert result output is empty
         same     assert left string or file contents equals expected right string or file contents
         same~    assert left string or unordered file contents equals expected right string or unordered file contents
         samecol  compare same column from two files; column number and separator can be passed after files (default: column 1, comma (;) as separator)
@@ -251,7 +252,7 @@ assert() {
     local a="$1"; shift
     local res1 res2 r
     case "${a^^}" in
-        TRUE|FALSE|EQUALS|SAME|SAME~|EXISTS|FILE~|FILE|SAMECOL|SAMECOL~) a=${a^^};;
+        TRUE|FALSE|EQUALS|EMPTY|SAME|SAME~|EXISTS|FILE~|FILE|SAMECOL|SAMECOL~) a=${a^^};;
         *) echo "unknown assertion '$a' (${sf}:${FUNCNAME[1]}:${BASH_LINENO[0]})"; return $r_fail;;
     esac
     set -- "$@"
@@ -279,6 +280,10 @@ assert() {
                         [[ -n "$xval" ]] && r=0
                     }
                 } || r=1;;
+        EMPTY)
+            assert same "" "$cmp"
+            r=$?
+            ;;
         SAME)
             [[ -e "$exp" ]] && exp_f="$exp"||:; [[ -e "$cmp" ]] && cmp_f="$cmp"||:;
             cmp_diff=$(diff -u ${exp_f:-<(echo "$2")} ${cmp_f:-<(echo "$1")} 2>/dev/null) && r=0 || r=1;;
@@ -315,7 +320,7 @@ assert() {
         local c="$( sed -n "${line}p" "$f" | sed -e 's/^[\t ]*\(.*\)$/\1/g')"
         echo "-> $c"
         echo "=> assert ${is_not}${a} '${cmp}' ${exp+'$exp'}"
-        [[ "$a" == SAME || "$a" == SAME~ || "$a" == SAMECOL || "$a" == SAMECOL~ ]] && {
+        [[ "$a" == SAME || "$a" == SAME~ || "$a" == SAMECOL || "$a" == SAMECOL~ || "$a" == EMPTY ]] && {
             echo
             echo -e "${YELLOW}expected${RST}${cmp_f:+ (from '$cmp_f')}:\n----------\n$(cat ${cmp_f:-<(echo "$cmp")})\n----------"
             echo -e "${YELLOW}got${RST}${exp_f:+ (from '$exp_f')}:\n----------\n$(cat ${exp_f:-<(echo $exp)})\n----------"
@@ -405,6 +410,7 @@ _run_tests() {
     local _end=$(( ${#l_tests[@]} ))
     local _cur=0
     local _is_last=0
+
     for t in ${l_tests[@]}; do
         ((++_cur >= _end)) && _is_last=1
         ((++n)); nn=$(printf "%02d" "$n")
