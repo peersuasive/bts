@@ -254,6 +254,7 @@ assert() {
     local NOT=0
     local sf=${f##*/}
     [[ "$1" == NOT || "$1" == not ]] && NOT=1 && shift
+    local _not=$( ((NOT)) && echo ' NOT' )
     local is_not=$( ((NOT)) && echo 'NOT ' )
     local a="$1"; shift
     local res1 res2 r
@@ -328,9 +329,9 @@ assert() {
         echo "=> assert ${is_not}${a} '${cmp}' ${exp+'$exp'}"
         [[ "$a" == SAME || "$a" == SAME~ || "$a" == SAMECOL || "$a" == SAMECOL~ || "$a" == EMPTY ]] && {
             echo
-            echo -e "${YELLOW}expected${RST}${cmp_f:+ (from '$cmp_f')}:\n----------\n$(cat ${cmp_f:-<(echo "$cmp")})\n----------"
-            echo -e "${YELLOW}got${RST}${exp_f:+ (from '$exp_f')}:\n----------\n$(cat ${exp_f:-<(echo $exp)})\n----------"
-            [[ -n "$cmp_diff" ]] && {
+            echo -e "${YELLOW}expected${_not}${RST}${cmp_f:+ (from '$cmp_f')}:\n----------\n$(cat ${cmp_f:-<(echo "$cmp")})\n----------"
+            echo -e "${YELLOW}got${RST}${exp_f:+ (from '$exp_f')}:\n----------\n$(cat ${exp_f:-<(echo "${exp:-}")})\n----------"
+            [[ -n "${cmp_diff:-}" ]] && {
                 echo -e "${YELLOW}diff${RST}:\n$cmp_diff"
                 echo "----------"
             }
