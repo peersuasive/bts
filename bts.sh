@@ -292,21 +292,21 @@ assert() {
             r=$?
             ;;
         SAME)
-            [[ -e "$exp" ]] && exp_f="$exp"||:; [[ -e "$cmp" ]] && cmp_f="$cmp"||:;
-            cmp_diff=$(diff -u ${exp_f:-<(echo "$2")} ${cmp_f:-<(echo "$1")} 2>/dev/null) && r=0 || r=1;;
+            [[ -e "${exp:-}" ]] && exp_f="$exp"||:; [[ -e "$cmp" ]] && cmp_f="$cmp"||:;
+            cmp_diff=$(diff -u ${exp_f:-<(echo -e "$2")} ${cmp_f:-<(echo -e "$1")} 2>/dev/null) && r=0 || r=1;;
         SAME~)
-            [[ -e "$exp" ]] && exp_f="$exp"||:; [[ -e "$cmp" ]] && cmp_f="$cmp"||:;
-            cmp_diff=$(diff -u <(sort ${exp_f:-<(echo "$2")}) <(sort ${cmp_f:-<(echo "$1")}) 2>/dev/null) && r=0 || r=1;;
+            [[ -e "${exp:-}" ]] && exp_f="$exp"||:; [[ -e "$cmp" ]] && cmp_f="$cmp"||:;
+            cmp_diff=$(diff -u <(sort ${exp_f:-<(echo -e "$2")}) <(sort ${cmp_f:-<(echo -e "$1")}) 2>/dev/null) && r=0 || r=1;;
         SAMECOL)
             local col="${3:-1}"
             local sep="${4:-;}"
-            [[ -e "$exp" ]] && exp_f="$exp"||:; [[ -e "$cmp" ]] && cmp_f="$cmp"||:;
-            cmp_diff=$(diff -u <( awk -F"${sep}" '{print $'${col}'}' ${exp_f:-<(echo "$2")} ) <( awk -F"${sep}" '{print $'${col}'}' ${cmp_f:-<(echo "$1")} ) 2>/dev/null) && r=0 || r=1;;
+            [[ -e "${exp:-}" ]] && exp_f="$exp"||:; [[ -e "$cmp" ]] && cmp_f="$cmp"||:;
+            cmp_diff=$(diff -u <( awk -F"${sep}" '{print $'${col}'}' ${exp_f:-<(echo -e "$2")} ) <( awk -F"${sep}" '{print $'${col}'}' ${cmp_f:-<(echo -e "$1")} ) 2>/dev/null) && r=0 || r=1;;
         SAMECOL~)
             local col="${3:-1}"
             local sep="${4:-;}"
-            [[ -e "$exp" ]] && exp_f="$exp"||:; [[ -e "$cmp" ]] && cmp_f="$cmp"||:;
-            cmp_diff=$(diff -u <( awk -F"${sep}" '{print $'${col}'}' <( sort -k${col} ${exp_f:-<(echo "$2")} ) ) <( awk -F"${sep}" '{print $'${col}'}' <( sort -k${col} ${cmp_f:-<(echo "$1")} ) ) 2>/dev/null) && r=0 || r=1;;
+            [[ -e "${exp:-}" ]] && exp_f="$exp"||:; [[ -e "$cmp" ]] && cmp_f="$cmp"||:;
+            cmp_diff=$(diff -u <( awk -F"${sep}" '{print $'${col}'}' <( sort -k${col} ${exp_f:-<(echo -e "$2")} ) ) <( awk -F"${sep}" '{print $'${col}'}' <( sort -k${col} ${cmp_f:-<(echo -e "$1")} ) ) 2>/dev/null) && r=0 || r=1;;
 
     esac
     local old_r=$r
