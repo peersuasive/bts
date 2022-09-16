@@ -637,6 +637,7 @@ run() {
 
 ARGS=()
 TEST_DIR=tests
+export __BTS_TEST_DIR=$TEST_DIR
 while (($#)); do
     case "$1" in
         -h|--help) usage; exit 0;;
