@@ -529,6 +529,7 @@ _run_tests() {
             sed -ri 's;%\{this\};'"${__bts_this}"';g;s;%\{this_test\};'"${t}"';g' "$tmp_sh"
             sed -ri 's;%\{assets\};'"${TEST_DIR}/assets/${__bts_this}"';g' "$tmp_sh"
             sed -ri 's;%\{root_dir\};'"$(dirname "$(readlink -f "${TEST_DIR}")")"';g' "$tmp_sh"
+            sed -ri 's;%\{assets_dir\};'"$(readlink -f "${TEST_DIR}/assets")"';g' "$tmp_sh"
             eval export ${t##*test_}=1
             eval export ${t}=1
             if [[ "${t#*__}" != "$t" ]]; then eval export ${t#*__}=1; fi
