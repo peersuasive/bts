@@ -139,6 +139,7 @@ r_fatal=2
 r_fatal2=5
 r_warn=3
 r_todo=4
+r_cnf=6
 exp_vars+=( r_ok r_fail r_fatal r_warn r_todo )
 
 echo_c() {
@@ -519,7 +520,7 @@ _run_tests() {
                 local line=${BASH_LINENO[0]}
                 local err_line=$(sed -n ${line}p "$f"|xargs|tr -d $'\n')
                 echo -e "FATAL: command not found: ${sf}:${FUNCNAME[1]}:${BASH_LINENO[0]}:\n -> $err_line"
-                exit $r_fatal
+                exit $r_cnf ## useless, handle won't pass exit code
             }
 
             __bts_this="$(basename $( readlink -f "$f" ))"; __bts_this="${__bts_this%.sh}"
@@ -559,7 +560,7 @@ _run_tests() {
             exec 7>&-
             exit $rr
         ); r=$?
-        grep -iq 'FATAL: command not found' "$log_file" && r=$r_fatal
+        grep -iq 'FATAL: command not found' "$log_file" && r=$r_cnf
         ((r)) && prev_failed=1 || prev_failed=0
 
         _no_forced_log=0
@@ -579,7 +580,11 @@ _run_tests() {
 
             $r_fatal|$r_fatal2) echo_c FATAL " [FATAL] Failed to execute $( ((r==r_fatal)) && echo 'preset' || echo 'setup')"
                 cat "$log_file"
-                return 2
+                return $r_fatal
+                ;;
+            $r_cnf) echo_c FATAL " [FATAL] Command not found. Aborting."
+                cat "$log_file"
+                return $r_fatal
                 ;;
 
             $r_warn) echo_c WARN " [WARNING] Failed to execute some environmental method"
@@ -588,7 +593,7 @@ _run_tests() {
             *) echo " -> [UNK STATE:$r]"
                 ;;
         esac
-        ((r==$r_warn || r==$r_fatal || SHOW_OUTPUT)) && cat "$log_file" || {
+        ((r==$r_warn || r==$r_fatal || r==$r_cnf || SHOW_OUTPUT)) && cat "$log_file" || {
             ((r && SHOW_FAILED && !_no_forced_log )) && cat "$log_file"
         }
     done
@@ -649,6 +654,7 @@ run() {
         results="$results_base/${fr%.*}"; mkdir -p "$results"
         echo -e "${INV}Running test class ${BOLD}${CYAN}$fr${RST}"
         _run_tests "$ff" "$t"
+        r=$?; (( r == $r_fatal )) && break
         echo
         echo -e "-> [$((total-failed))/$total] ($failed failure$(((failed>1)) && echo s)$(((unimplemented)) && echo ", $unimplemented being unimplemented test$(((unimplemented>1))&& echo s)"))"
     done
