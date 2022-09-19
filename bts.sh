@@ -285,12 +285,15 @@ assert() {
     local cmp_diff
     case $a in
         TRUE|FALSE)
-            [[ -n "$cmp" && ! "$cmp" =~ ^[0]+$ && ! "$cmp" =~ ^[\t\ ]*[Ff][Aa][Ll][Ss][Ee][\t\ ]*$ ]] && {
-                [[ "$cmp" =~ ^[\t\ ]*[Tt][Rr][Uu][Ee][\t\ ]*$ || "$cmp" == "1" ]] && r=0 || {
-                    cmp="$@"; unset exp
-                    (eval "$@";) && r=0
-                }
-            } || r=1
+            case "$cmp" in
+                [Tt][Rr][Uu][Ee]) r=0;;
+                [Ff][Aa][Ll][Ss][Ee]) r=1;;
+                *)  if [[ "$cmp" =~ ^[\t\ ]*[-]?[0-9]+[\t\ ]*$ ]]; then
+                        (( cmp > 0 )) && r=0 || r=1
+                    else
+                        cmp="$@"; unset exp; (eval "$@";) && r=0 || r=1
+                    fi
+            esac
             [[ "$a" == FALSE ]] && r=$((!r));;
         EQUALS) [[ "$cmp" == "$exp" ]] && r=0 || r=1;;
         FILE~) local dn="$(dirname "$cmp")"; find "$dn" -maxdepth 1 -regex "$dn/$(basename "$cmp")" 2>/dev/null| grep -q '.' && r=0 || r=1;;
@@ -556,6 +559,7 @@ _run_tests() {
             exec 7>&-
             exit $rr
         ); r=$?
+        grep -iq 'FATAL: command not found' "$log_file" && r=$r_fatal
         ((r)) && prev_failed=1 || prev_failed=0
 
         _no_forced_log=0

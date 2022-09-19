@@ -53,8 +53,13 @@ assert__assert_true() {
     assert not true FALSE
     assert not true FaLsE
     assert true 1
-    assert not true 11
     assert not true 0
+}
+
+assert__assert_not_true_with_num() {
+    assert true 11
+    assert false -1
+    assert not true '-1'
 }
 
 assert__assert_false() {
@@ -70,7 +75,7 @@ assert__assert_false() {
     assert not false TRUE
     assert not false TrUe
     assert false 0
-    assert false "11"
+    assert not false "11"
     assert not false 1
 }
 
