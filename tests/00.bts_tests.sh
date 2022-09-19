@@ -179,3 +179,10 @@ assert__assert_file() {
     touch "$test_complex_file"
     assert file~ "$tmp_dir"'/bts.test_[^.]+.Some_Complex_File.20[2-9][0-9]\(0[1-9]\|1[0-2]\)\(0[1-9]\|[12][0-9]\|3[01]\)[0-5][0-9][0-5][0-9][0-5][0-9]\.txt'
 }
+
+assert__assert_empty() {
+    assert empty ""
+}
+assert__assert_not_empty() {
+    assert not empty "not empty"
+}

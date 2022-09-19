@@ -309,8 +309,7 @@ assert() {
                     }
                 } || r=1;;
         EMPTY)
-            assert same "" "$cmp"
-            r=$?
+            assert same "" "$cmp" && r=0 || r=1
             ;;
         SAME)
             [[ -e "${exp:-}" ]] && exp_f="$exp"||:; [[ -e "$cmp" ]] && cmp_f="$cmp"||:;
