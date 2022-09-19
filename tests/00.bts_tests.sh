@@ -54,6 +54,10 @@ assert__assert_true() {
     assert not true FaLsE
     assert true 1
     assert not true 0
+    assert ok 1
+    assert ok ok
+    assert ok TRUE
+    assert not ok 0
 }
 
 assert__assert_not_true_with_num() {
@@ -77,6 +81,13 @@ assert__assert_false() {
     assert false 0
     assert not false "11"
     assert not false 1
+}
+
+assert__assert_ko() {
+    assert ko 0
+    assert ko ko
+    assert ko false
+    assert not ko ok
 }
 
 assert__same() {

@@ -42,7 +42,7 @@ Utils (functions):
     fail     exit test immediatly with a failure (FAIL) message
     ok       exit test immediatly with a success (OK) message
     todo     exit test immediatly with a TODO message; this is accounted as a failure but notified as an unimplemented test also
-    assert [true|false|equals|same|empty] <expression>
+    assert [ok|true|ko|false|equals|same|empty] <expression>
         true     assert evaluation is true
         false    assert evaluation if false
         equals   assert left string equals expected right string
@@ -275,7 +275,7 @@ assert() {
     local a="$1"; shift
     local res1 res2 r
     case "${a^^}" in
-        TRUE|FALSE|EQUALS|EMPTY|SAME|SAME~|EXISTS|FILE~|FILE|SAMECOL|SAMECOL~) a=${a^^};;
+        OK|TRUE|KO|FALSE|EQUALS|EMPTY|SAME|SAME~|EXISTS|FILE~|FILE|SAMECOL|SAMECOL~) a=${a^^};;
         *) echo "unknown assertion '$a' (${sf}:${FUNCNAME[1]}:${BASH_LINENO[0]})"; return $r_fail;;
     esac
     set -- "$@"
@@ -285,8 +285,10 @@ assert() {
     local cmp_f exp_f
     local cmp_diff
     case $a in
-        TRUE|FALSE)
+        OK|TRUE|KO|FALSE)
             case "$cmp" in
+                [Oo][Kk]) r=0;;
+                [Kk][Oo]) r=1;;
                 [Tt][Rr][Uu][Ee]) r=0;;
                 [Ff][Aa][Ll][Ss][Ee]) r=1;;
                 *)  if [[ "$cmp" =~ ^[\t\ ]*[-]?[0-9]+[\t\ ]*$ ]]; then
@@ -295,7 +297,7 @@ assert() {
                         cmp="$@"; unset exp; (eval "$@";) && r=0 || r=1
                     fi
             esac
-            [[ "$a" == FALSE ]] && r=$((!r));;
+            [[ "$a" == FALSE || "$a" == KO ]] && r=$((!r));;
         EQUALS) [[ "$cmp" == "$exp" ]] && r=0 || r=1;;
         FILE~) local dn="$(dirname "$cmp")"; find "$dn" -maxdepth 1 -regex "$dn/$(basename "$cmp")" 2>/dev/null| grep -q '.' && r=0 || r=1;;
         FILE)  [[ -e "$cmp" ]] && r=0 || r=1;;
