@@ -46,14 +46,14 @@ Utils (functions):
         exists   assert contents exist
     asset [-n] <asset[.gz|bz2]> [dest-dir|dest-file]
         try its best to find file in 'TEST_DIR/assets/[test_name]...' and send it to destination or stdout
-        -n       pass full path to ressource, instead of content
+        -n       pass full path to ressource, instead of contents
     @should_fail <expression>
                 assert next evaluation fails as expected
                 
 Utils (class)
     @load                       load a file relative to test dir; useful to load common tests or functions, for instance
     mock_funcs/__mock_funcs     load mockup functions; syntax: mockup_function[:alias]; ex., __mock_funcs='__crontab:crontab'
-                                this is mainly usefull loading environment before calling shell command than bash, for eg., ksh
+                                this is mainly usefull when loading an environment before calling another shell command than bash, for eg., ksh
 
 Other
     .btsignore  bts will ignore _tests_ declared in this file -- one per line, no glob or regex; reminder: bts ignores anything not matching [0-9]*.sh anyway
