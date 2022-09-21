@@ -179,6 +179,13 @@ DBG() {
 trace() {
     echo "$@" >&2
 }
+stdout() {
+    echo "$@" >&7
+}
+stderr() {
+    echo "$@" >&8
+}
+exp_cmds+=( stdout stderr )
 
 asset() {
     local filename_only=0
@@ -212,7 +219,7 @@ asset() {
     fi
 }
 
-exp_cmds+=( fail ok fatal todo dbg trace )
+exp_cmds_pre+=( fail ok fatal todo dbg trace )
 
 @load() {
     local f="$1"; shift
@@ -224,10 +231,10 @@ exp_cmds+=( fail ok fatal todo dbg trace )
 exp_utils+=( @load )
 
 export_cmds() {
-    for c in 'setup' 'teardown'; do
+    for c in 'setup' 'teardown' ${exp_cmds[@]}; do
         typeset -f "$c"
     done
-    for c in ${exp_cmds[@]}; do
+    for c in ${exp_cmds_pre[@]}; do
         typeset -f "$c" | sed -e 's;'"${c#bts_}"' ();bts_'"${c}"' ();'
     done
     typeset vars=""
@@ -249,7 +256,7 @@ mock_funcs() {
             local fn_name=${fn%%:*}; local fn_alias=${fn##*:}
             typeset -f "$fn_name"
             if [[ "$fn_alias" != "$fn_name" ]]; then
-                echo "alias $fn_alias='$fn_name'"
+                echo "alias -p $fn_alias='$fn_name'"
                 echo "export $fn_alias"
             fi
         done
