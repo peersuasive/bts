@@ -245,7 +245,7 @@ export_utils() {
 
 mock_funcs() {
     if [[ -n "${__mock_funcs:-}" ]]; then
-        for fn in "$__mock_funcs"; do
+        for fn in $__mock_funcs; do
             local fn_name=${fn%%:*}; local fn_alias=${fn##*:}
             typeset -f "$fn_name"
             if [[ "$fn_alias" != "$fn_name" ]]; then
