@@ -292,10 +292,8 @@ assert() {
     local cmp_f exp_f
     local cmp_diff
     case $a in
-        OK|TRUE|KO|FALSE)
+        TRUE|FALSE)
             case "$cmp" in
-                [Oo][Kk]) r=0;;
-                [Kk][Oo]) r=1;;
                 [Tt][Rr][Uu][Ee]) r=0;;
                 [Ff][Aa][Ll][Ss][Ee]) r=1;;
                 *)  if [[ "$cmp" =~ ^[\t\ ]*[-]?[0-9]+[\t\ ]*$ ]]; then
@@ -304,7 +302,20 @@ assert() {
                         cmp="$@"; unset exp; (eval "$@";) && r=0 || r=1
                     fi
             esac
-            [[ "$a" == FALSE || "$a" == KO ]] && r=$((!r));;
+            [[ "$a" == FALSE ]] && r=$((!r))
+            ;;
+        OK|KO)
+            case "$cmp" in
+                [Oo][Kk]) r=0;;
+                [Kk][Oo]) r=1;;
+                *)  if [[ "$cmp" =~ ^[\t\ ]*[-]?[0-9]+[\t\ ]*$ ]]; then
+                        (( cmp > 0 )) && r=1 || r=0
+                    else
+                        cmp="$@"; unset exp; (eval "$@";) && r=0 || r=1
+                    fi
+            esac
+            [[ "$a" == KO ]] && r=$((!r))
+            ;;
         EQUALS) [[ "$cmp" == "$exp" ]] && r=0 || r=1;;
         FILE~) local dn="$(dirname "$cmp")"; find "$dn" -maxdepth 1 -regex "$dn/$(basename "$cmp")" 2>/dev/null| grep -q '.' && r=0 || r=1;;
         FILE)  [[ -e "$cmp" ]] && r=0 || r=1;;
