@@ -556,10 +556,13 @@ _run_tests() {
             \rm -f "$tmp_sh"
             ((!_preset_executed)) && {
                 _preset_executed=1
-                [[ -n "$preset" ]] && { 
+                [[ -n "$preset" ]] && {
                     local pre_log
-                    pre_log=$( $preset ) || exit $r_fatal
-                    echo "$pre_log" | grep -q 'command not found' && echo "$pre_log" && exit $r_fatal
+                    pre_log="$tmp_sh.log"
+                    $preset >"$pre_log" 2>&1 || {
+                        cat "$pre_log" | grep -q 'command not found' && cat "$pre_log" && \rm -f "$pre_log" && exit $r_fatal
+                    }
+                    true
                 }
             }
 
