@@ -562,6 +562,7 @@ _run_tests() {
                     $preset >"$pre_log" 2>&1 || {
                         cat "$pre_log" | grep -q 'command not found' && cat "$pre_log" && \rm -f "$pre_log" && exit $r_fatal
                     }
+                    \rm -f "$pre_log"
                     true
                 }
             }
