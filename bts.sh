@@ -282,7 +282,7 @@ assert() {
     local a="$1"; shift
     local res1 res2 r
     case "${a^^}" in
-        OK|TRUE|KO|FALSE|EQUALS|EMPTY|SAME|SAME~|EXISTS|FILE~|FILE|SAMECOL|SAMECOL~) a=${a^^};;
+        OK|TRUE|KO|FALSE|EQUALS|EMPTY|SAME|SAME~|EXISTS|FILE~|FILE|DIR|DIR~|SAMECOL|SAMECOL~) a=${a^^};;
         *) echo "unknown assertion '$a' (${sf}:${FUNCNAME[1]}:${BASH_LINENO[0]})"; return $r_fail;;
     esac
     set -- "$@"
@@ -317,8 +317,8 @@ assert() {
             [[ "$a" == KO ]] && r=$((!r))
             ;;
         EQUALS) [[ "$cmp" == "$exp" ]] && r=0 || r=1;;
-        FILE~) local dn="$(dirname "$cmp")"; find "$dn" -maxdepth 1 -regex "$dn/$(basename "$cmp")" 2>/dev/null| grep -q '.' && r=0 || r=1;;
-        FILE)  [[ -e "$cmp" ]] && r=0 || r=1;;
+        FILE~|DIR~) local dn="$(dirname "$cmp")"; find "$dn" -maxdepth 1 -regex "$dn/$(basename "$cmp")" 2>/dev/null| grep -q '.' && r=0 || r=1;;
+        FILE|DIR)  [[ -e "$cmp" ]] && r=0 || r=1;;
         EXISTS) [[ -n "$cmp" ]] && {
                     ! [[ "$cmp" =~ ^[$] ]] && r=0 || {
                         local xv="${cmp#$}"
