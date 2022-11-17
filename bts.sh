@@ -282,7 +282,7 @@ assert() {
     local a="$1"; shift
     local res1 res2 r
     case "${a^^}" in
-        OK|TRUE|KO|FALSE|EQUALS|EMPTY|SAME|SAME~|EXISTS|FILE~|FILE|DIR|DIR~|SAMECOL|SAMECOL~) a=${a^^};;
+        OK|TRUE|KO|FALSE|EQUALS|EMPTY|MATCH|SAME|SAME~|EXISTS|FILE~|FILE|DIR|DIR~|SAMECOL|SAMECOL~) a=${a^^};;
         *) echo "unknown assertion '$a' (${sf}:${FUNCNAME[1]}:${BASH_LINENO[0]})"; return $r_fail;;
     esac
     set -- "$@"
@@ -328,6 +328,9 @@ assert() {
                 } || r=1;;
         EMPTY)
             assert same "" "$cmp" && r=0 || r=1
+            ;;
+        MATCH)
+            echo "$exp" | grep -Eq "$cmp" && r=0 || r=1
             ;;
         SAME)
             [[ -e "${exp:-}" ]] && exp_f="$exp"||:; [[ -e "$cmp" ]] && cmp_f="$cmp"||:;
