@@ -690,7 +690,6 @@ run() {
 
 ARGS=()
 TEST_DIR=tests
-export __BTS_TEST_DIR=$TEST_DIR
 while (($#)); do
     case "$1" in
         -h|--help) usage; exit 0;;
@@ -714,6 +713,8 @@ done
 set -- "${ARGS[@]}"
 ## no tests found
 ! [[ -d "$TEST_DIR" ]] && echo "Nothing to test" && exit 0
+
+export __BTS_TEST_DIR=$TEST_DIR
 
 test_list="${@:-$here/$TEST_DIR/[0-9]*.sh}"
 run
