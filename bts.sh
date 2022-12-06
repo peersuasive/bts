@@ -29,6 +29,7 @@ Options:
     -s|--silent             don't show any output at all
     -l|--list|--list-tests  list available test without executing
     -t|--tests-dir <dir>    look for tests in 'dir' instead of 'tests'
+    -r|--project-root <dir> project's base root (default: .)
     -D|--DEBUG              debug BTS
     -dd|--extra-debug       enable extra dbg traces (typically, turns 'set -x' on)
     -d|--debug              enable dbg traces
@@ -704,6 +705,7 @@ while (($#)); do
         -qq|--very-quiet|-s|--silent) QUIET=1; SHOW_FAILED=0; SHOW_OUTPUT=0;;
         -l|--list|--list-tests) LIST_ONLY=1;;
         -t|--tests-dir) TEST_DIR="$2"; shift;;
+        -r|--project-root) PROJECT_ROOT="$2"; shift;;
         #-i|--interactive) LIST_ONLY=1; INTERACTIVE=1;;
         *) ARGS+=( "$1" );;
     esac
@@ -714,7 +716,8 @@ set -- "${ARGS[@]}"
 ## no tests found
 ! [[ -d "$TEST_DIR" ]] && echo "Nothing to test" && exit 0
 
-export __BTS_TEST_DIR=$TEST_DIR
+export __BTS_TEST_DIR="$TEST_DIR"
+export PROJECT_ROOT="$( readlink -f "${PROJECT_ROOT:-.}" )"
 
 test_list="${@:-$here/$TEST_DIR/[0-9]*.sh}"
 run
