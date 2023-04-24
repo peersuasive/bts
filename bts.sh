@@ -4,6 +4,21 @@
 set -o pipefail
 set -u
 
+System=$(uname -s); MacOS=0; Linux=0;
+case "${System,,}" in
+    linux)
+        Linux=1
+        MacOS=0
+        ;;
+    darwin)
+        Linux=0
+        MacOS=1
+        ;;
+    *)
+        Linux=1
+        MacOS=0
+esac
+
 DEBUG=${DEBUG:-0}
 DEBUG_BTS=${DEBUG_BTS:-0}
 
@@ -208,7 +223,7 @@ asset() {
         }
     ((filename_only)) && echo "$a" && return 0
     local unc=cat
-    [[ "${a}" =~ \.gz$ ]] && unc=zcat && ext=.gz
+    [[ "${a}" =~ \.gz$ ]] && { ((Linux)) && unc=zcat || unc=gzcat; true; ext=.gz; }
     [[ "${a}" =~ \.bz2$ ]] && unc=bzcat && ext=.bz2
 
     if [[ -d "$d" ]]; then
