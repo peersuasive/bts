@@ -38,7 +38,7 @@ Usage notes:
 Options:
     -h|--help               show this message and exit
     -v|--verbose            show output in case of failure only (default)
-    -vv|--very-verbose      always show output
+    -vv|-vvv|--very-verbose      always show output
     -q|--quiet              don't show output, even in case of failure
     -qq|--very-quiet
     -s|--silent             don't show any output at all
@@ -706,24 +706,31 @@ run() {
 
 ARGS=()
 TEST_DIR=tests
+ignore_params=0
 while (($#)); do
-    case "$1" in
-        -h|--help) usage; exit 0;;
-        -vv|--very-verbose) SHOW_OUTPUT=1;;
-        -v|--verbose) SHOW_FAILED=1;;
-        -C|--no-color) NO_COLORS=1;;
-        -c|--color) NO_COLORS=0;;
-        -dd|--extra-debug) DEBUG=2;;
-        -d|--debug) DEBUG=1;;
-        -D|--DEBUG) DEBUG_BTS=1;;
-        -q|--quiet) QUIET=1; SHOW_FAILED=0;;
-        -qq|--very-quiet|-s|--silent) QUIET=1; SHOW_FAILED=0; SHOW_OUTPUT=0;;
-        -l|--list|--list-tests) LIST_ONLY=1;;
-        -t|--tests-dir) TEST_DIR="$2"; shift;;
-        -r|--project-root) PROJECT_ROOT="$2"; shift;;
-        #-i|--interactive) LIST_ONLY=1; INTERACTIVE=1;;
-        *) ARGS+=( "$1" );;
-    esac
+    if ((ignore_params));then
+        ARGS+=( "$1" )
+    else
+        case "$1" in
+            -h|--help) usage; exit 0;;
+            -vv|-vvv|--very-verbose) SHOW_OUTPUT=1;;
+            -v|--verbose) SHOW_FAILED=1;;
+            -C|--no-color) NO_COLORS=1;;
+            -c|--color) NO_COLORS=0;;
+            -dd|--extra-debug) DEBUG=2;;
+            -d|--debug) DEBUG=1;;
+            -D|--DEBUG) DEBUG_BTS=1;;
+            -q|--quiet) QUIET=1; SHOW_FAILED=0;;
+            -qq|--very-quiet|-s|--silent) QUIET=1; SHOW_FAILED=0; SHOW_OUTPUT=0;;
+            -l|--list|--list-tests) LIST_ONLY=1;;
+            -t|--tests-dir) TEST_DIR="$2"; shift;;
+            -r|--project-root) PROJECT_ROOT="$2"; shift;;
+            --) ignore_params=1;;
+            -*) echo "Unknown parameter: $1" >&2; exit 1;;
+            #-i|--interactive) LIST_ONLY=1; INTERACTIVE=1;;
+            *) ARGS+=( "$1" );;
+        esac
+    fi
     shift
 done
 !((NO_COLORS)) && _set_colors
