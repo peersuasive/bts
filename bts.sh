@@ -4,21 +4,6 @@
 set -o pipefail
 set -u
 
-System=$(uname -s); MacOS=0; Linux=0;
-case "${System,,}" in
-    linux)
-        Linux=1
-        MacOS=0
-        ;;
-    darwin)
-        Linux=0
-        MacOS=1
-        ;;
-    *)
-        Linux=1
-        MacOS=0
-esac
-
 DEBUG=${DEBUG:-0}
 DEBUG_BTS=${DEBUG_BTS:-0}
 
@@ -38,7 +23,7 @@ Usage notes:
 Options:
     -h|--help               show this message and exit
     -v|--verbose            show output in case of failure only (default)
-    -vv|-vvv|--very-verbose      always show output
+    -vv|--very-verbose      always show output
     -q|--quiet              don't show output, even in case of failure
     -qq|--very-quiet
     -s|--silent             don't show any output at all
@@ -192,6 +177,8 @@ DBG() {
     ((DEBUG_BTS)) && echo -e "${INV}${BOLD}${BLUE}[BTS]${RST} ${BOLD}${WHITE}$@${RST}" >&2
     return 0
 }
+
+## TODO display at the bottom, with tput, etc.
 trace() {
     echo "$@" >&2
 }
@@ -223,7 +210,7 @@ asset() {
         }
     ((filename_only)) && echo "$a" && return 0
     local unc=cat
-    [[ "${a}" =~ \.gz$ ]] && { ((Linux)) && unc=zcat || unc=gzcat; true; ext=.gz; }
+    [[ "${a}" =~ \.gz$ ]] && unc=zcat && ext=.gz
     [[ "${a}" =~ \.bz2$ ]] && unc=bzcat && ext=.bz2
 
     if [[ -d "$d" ]]; then
@@ -462,8 +449,6 @@ _run_tests() {
     local preset="${tests_ext[preset]:-}"
     local reset="${tests_ext[reset]:-}"
 
-    failed=0
-    unimplemented=0
     total=${#l_tests[@]}; local s=""; ((total>1)) && s='s'
 
     ((!total)) && echo "No test found" && return $r_ok
@@ -475,172 +460,194 @@ _run_tests() {
     local _cur=0
     local _is_last=0
 
-    for t in ${l_tests[@]}; do
-        ((++_cur >= _end)) && _is_last=1
-        ((++n)); nn=$(printf "%02d" "$n")
-        local ts=${t##*test_}; ts=${ts//__/: }; ts=${ts//_/ }
-        local log_file="${results}/${nn}.${t}.log"
-        local log_file_err="${results}/${nn}.${t}.err.log"
-        ((SHOW_OUTPUT && n>1)) || (( SHOW_FAILED && prev_failed)) && echo
-        echo -en "[$n/${total}] ${BOLD}${WHITE}${ts}${RST}"
-        (
+    (
+        failed=0
+        unimplemented=0
+        ## prepare tests
+        __bts_this="$(basename $( readlink -f "$f" ))"; __bts_this="${__bts_this%.sh}"
+        main_tmp_sh="$TEST_DIR/.${__bts_this}_bts.sh"
+        cat "$f" > "$main_tmp_sh"
+        sed -ri 's;%\{this\};'"${__bts_this}"';g' "$main_tmp_sh"
+        sed -ri 's;%\{assets\};'"${TEST_DIR}/assets/${__bts_this}"';g' "$main_tmp_sh"
+        sed -ri 's;%\{root_dir\};'"$(dirname "$(readlink -f "${TEST_DIR}")")"';g' "$main_tmp_sh"
+        sed -ri 's;%\{assets_dir\};'"$(readlink -f "${TEST_DIR}/assets")"';g' "$main_tmp_sh"
+
+        ## source main script, for preset & reset
+        source "$main_tmp_sh"
+        # execute preset
+        [[ -n "$preset" ]] && {
             exec 8>&1
             exec 9>&2
-            exec 1>>$log_file
-            exec 2>>$log_file
+            local pre_log
+            pre_log="$main_tmp_sh.log"
+            __preset_res=0
+            $preset > "$pre_log" 2>&1 || __preset_res=1
+            exec 1>&8
+            exec 2>&9
+            if ((__preset_res)) || grep -q "command not found" "$pre_log"; then
+                __preset_res=1
+                #grep -q 'command not found' "$pre_log" && cat "$pre_log" && \rm -f "$pre_log" && exit $r_fatal
+                echo "Preset failed to execute:" >&2
+                cat "$pre_log" >&2
+            fi
+            \rm -f "$pre_log"
+            ((__preset_res)) && exit $r_fatal
+        }
 
-            echo "--- [$t] ----"
+        r=0
+        ## execute tests
+        for t in ${l_tests[@]}; do
+            ((++_cur >= _end)) && _is_last=1
+            ((++n)); nn=$(printf "%02d" "$n")
+            local ts=${t##*test_}; ts=${ts//__/: }; ts=${ts//_/ }
+            local log_file="${results}/${nn}.${t}.log"
+            local log_file_err="${results}/${nn}.${t}.err.log"
+            ((SHOW_OUTPUT && n>1)) || (( SHOW_FAILED && prev_failed)) && echo
+            (
+                exec 8>&1
+                exec 9>&2
+                exec 1>>$log_file
+                exec 2>>$log_file
 
-            set -o pipefail
-            set -eE
-            set -o functrace
-            _trap_exit() {
-                local retval=$?
-                \rm -f "$tmp_sh"
-                exit $retval
-            }
-            trap '_trap_exit' EXIT
-            trap '_trap_exit' SIGINT
-            trap '_trap_exit' SIGTERM
-            trap '_trap_exit' KILL
+                echo "--- [$t] ----"
 
-            _trap_err() {
-                local retval=$?
-
-                local lineno="${BASH_LINENO[1]}"
-                local line fline func
-                ((SHOULD)) && {
-                    DBG "IS A SHOULD"
-                    line=${BASH_LINENO[1]}
-                    func="${FUNCNAME[2]}"
-                } || {
-                    DBG "IS NOT A SHOULD"
-                    line=${BASH_LINENO[0]}
-                    func="${FUNCNAME[1]}"
+                set -o pipefail
+                set -eE
+                set -o functrace
+                _trap_exit() {
+                    local retval=$?
+                    \rm -f "$tmp_sh"
+                    exit $retval
                 }
-                fline="$line"
-                [[ "$func" != "$t" && ! "$func" =~ \@should_ ]] && {
-                    fline="[UNDEF]"
-                    func="$t"
-                }
-                trap - ERR
+                trap '_trap_exit' EXIT
+                trap '_trap_exit' SIGINT
+                trap '_trap_exit' SIGTERM
+                trap '_trap_exit' KILL
 
-                ## teardown & reset, anyway
-                [[ -n "$teardown" ]] && {
-                    $teardown || { echo "WARN: failed to execute '$teardown'!"; ((!retval)) && retval=$r_warn; }
-                }
-                ((_is_last)) && {
-                    [[ -n "$reset" ]] && {
-                        $reset || { echo "WARN: failed to execute '$reset'!"; ((!retval)) && retval=$r_warn; }
+                _trap_err() {
+                    local retval=$?
+
+                    local lineno="${BASH_LINENO[1]}"
+                    local line fline func
+                    ((SHOULD)) && {
+                        DBG "IS A SHOULD"
+                        line=${BASH_LINENO[1]}
+                        func="${FUNCNAME[2]}"
+                    } || {
+                        DBG "IS NOT A SHOULD"
+                        line=${BASH_LINENO[0]}
+                        func="${FUNCNAME[1]}"
                     }
+                    fline="$line"
+                    [[ "$func" != "$t" && ! "$func" =~ \@should_ ]] && {
+                        fline="[UNDEF]"
+                        func="$t"
+                    }
+                    trap - ERR
+
+                    ## teardown anyway
+                    [[ -n "$teardown" ]] && {
+                        $teardown || { echo "WARN: failed to execute '$teardown'!"; ((!retval)) && retval=$r_warn; }
+                    }
+
+                    echo "--- [$( ((retval)) && echo $FAILED || echo $OK)]: $t --------"
+                    echo
+                    local err_line=$(sed -n ${line}p "$f"|xargs|tr -d $'\n');
+                    local trc="(--> [${FUNCNAME[@]}, ${BASH_LINENO[@]}])"
+                    local t=( "Failed at ${sf}:${func}:${fline}" ": ${err_line:-$BASH_COMMAND}" "$trc" "TRAP TO RETURN $retval" )
+                    local max=0; for l in "${t[@]}"; do s=${#l}; (( s > max )) && max=$s; done; ((max+=4))
+                    echo -e "${BOLD}${BLUE}-- traces ------------${RST}"
+                    for l in "${t[@]}"; do
+                        printf "${YELLOWB}    ${BLACK}%-${max}s${RST}\n" "$l"
+                    done
+
+                    exec 1>&8
+                    exec 2>&9
+                    exec 7>&-
+
+                    return $retval
                 }
-                echo "--- [$( ((retval)) && echo $FAILED || echo $OK)]: $t --------"
+                trap '_trap_err' ERR
+                
+                command_not_found_handle() {
+                    local line=${BASH_LINENO[0]}
+                    local err_line=$(sed -n ${line}p "$f"|xargs|tr -d $'\n')
+                    echo -e "FATAL: command not found: ${sf}:${FUNCNAME[1]}:${BASH_LINENO[0]}:\n -> $err_line"
+                    exit $r_cnf ## useless, handle won't pass exit code
+                }
 
-                echo
-                local err_line=$(sed -n ${line}p "$f"|xargs|tr -d $'\n');
-                local trc="(--> [${FUNCNAME[@]}, ${BASH_LINENO[@]}])"
-                local t=( "Failed at ${sf}:${func}:${fline}" ": ${err_line:-$BASH_COMMAND}" "$trc" "TRAP TO RETURN $retval" )
-                local max=0; for l in "${t[@]}"; do s=${#l}; (( s > max )) && max=$s; done; ((max+=4))
-                echo -e "${BOLD}${BLUE}-- traces ------------${RST}"
-                for l in "${t[@]}"; do
-                    printf "${YELLOWB}    ${BLACK}%-${max}s${RST}\n" "$l"
-                done
+                tmp_sh="$main_tmp_sh.partial"
+                sed -re 's;%\{this\};'"${__bts_this}"';g;s;%\{this_test\};'"${t}"';g' "$main_tmp_sh" > "$tmp_sh"
+                eval export ${t##*test_}=1
+                eval export ${t}=1
+                if [[ "${t#*__}" != "$t" ]]; then eval export ${t#*__}=1; fi
+                source "$tmp_sh"
+                \rm -f "$tmp_sh"
 
+                [[ -n "$setup" ]] && { $setup || exit $r_fatal2; }
+
+                echo -en "[$n/${total}] ${BOLD}${WHITE}${ts}${RST}" >&8
+                $t; rr=$?
+
+                [[ -n "$teardown" ]] && {
+                    $teardown || { echo "WARN: failed to execute '$teardown'!"; ((!rr)) && rr=$r_warn; }
+                }
+                echo "--- [$( ((rr)) && echo $FAILED || echo $OK)]: $t --------"
                 exec 1>&8
                 exec 2>&9
                 exec 7>&-
+                exit $rr
+            ); r=$?
+            grep -iq 'FATAL: command not found' "$log_file" && r=$r_cnf
+            ((r)) && prev_failed=1 || prev_failed=0
 
-                return $retval
+            _no_forced_log=0
+            case $r in
+                $r_ok) echo_c OK " -> [$OK]"
+                    ;;
+
+                $r_todo) echo_c FAILED " -> [$TODO]"
+                    _no_forced_log=1
+                    prev_failed=0
+                    ((++failed))
+                    ((++unimplemented))
+                    ;;
+                $r_fail) echo_c FAILED " -> [$FAILED]"
+                    ((++failed))
+                    ;;
+
+                ## FIXME: preset is not here anymore, refactor
+                $r_fatal|$r_fatal2) echo_c FATAL " [FATAL] Failed to execute $( ((r==r_fatal)) && echo 'preset' || echo 'setup')"
+                    cat "$log_file"
+                    break
+                    #return $r_fatal
+                    ;;
+                $r_cnf) echo_c FATAL " [FATAL] Command not found. Aborting."
+                    cat "$log_file"
+                    break
+                    #return $r_fatal
+                    ;;
+
+                $r_warn) echo_c WARN " [WARNING] Failed to execute some environmental method"
+                    ;;
+
+                *) echo " -> [UNK STATE:$r]"
+                    ;;
+            esac
+            ((r==$r_warn || r==$r_fatal || r==$r_cnf || SHOW_OUTPUT)) && cat "$log_file" || {
+                ((r && SHOW_FAILED && !_no_forced_log )) && cat "$log_file"
             }
-            trap '_trap_err' ERR
-            
-            command_not_found_handle() {
-                local line=${BASH_LINENO[0]}
-                local err_line=$(sed -n ${line}p "$f"|xargs|tr -d $'\n')
-                echo -e "FATAL: command not found: ${sf}:${FUNCNAME[1]}:${BASH_LINENO[0]}:\n -> $err_line"
-                exit $r_cnf ## useless, handle won't pass exit code
-            }
+        done
 
-            __bts_this="$(basename $( readlink -f "$f" ))"; __bts_this="${__bts_this%.sh}"
-            tmp_sh="$TEST_DIR/.${__bts_this}_bts.sh"
-            cat "$f" > "$tmp_sh"
-            sed -ri 's;%\{this\};'"${__bts_this}"';g;s;%\{this_test\};'"${t}"';g' "$tmp_sh"
-            sed -ri 's;%\{assets\};'"${TEST_DIR}/assets/${__bts_this}"';g' "$tmp_sh"
-            sed -ri 's;%\{root_dir\};'"$(dirname "$(readlink -f "${TEST_DIR}")")"';g' "$tmp_sh"
-            sed -ri 's;%\{assets_dir\};'"$(readlink -f "${TEST_DIR}/assets")"';g' "$tmp_sh"
-            eval export ${t##*test_}=1
-            eval export ${t}=1
-            if [[ "${t#*__}" != "$t" ]]; then eval export ${t#*__}=1; fi
-            source "$tmp_sh"
-            \rm -f "$tmp_sh"
-            ((!_preset_executed)) && {
-                _preset_executed=1
-                [[ -n "$preset" ]] && {
-                    local pre_log
-                    pre_log="$tmp_sh.log"
-                    $preset >"$pre_log" 2>&1 || {
-                        cat "$pre_log" | grep -q 'command not found' && cat "$pre_log" && \rm -f "$pre_log" && exit $r_fatal
-                    }
-                    \rm -f "$pre_log"
-                    true
-                }
-            }
-
-            [[ -n "$setup" ]] && { $setup || exit $r_fatal2; }
-
-            $t; rr=$?
-
-            [[ -n "$teardown" ]] && {
-                $teardown || { echo "WARN: failed to execute '$teardown'!"; ((!rr)) && rr=$r_warn; }
-            }
-            ((_is_last)) && {
-                [[ -n "$reset" ]] && {
-                    $reset || { echo "WARN: failed to execute '$reset'!"; ((!rr)) && rr=$r_warn; }
-                }
-            }
-            echo "--- [$( ((rr)) && echo $FAILED || echo $OK)]: $t --------"
-            exec 1>&8
-            exec 2>&9
-            exec 7>&-
-            exit $rr
-        ); r=$?
-        grep -iq 'FATAL: command not found' "$log_file" && r=$r_cnf
-        ((r)) && prev_failed=1 || prev_failed=0
-
-        _no_forced_log=0
-        case $r in
-            $r_ok) echo_c OK " -> [$OK]"
-                ;;
-
-            $r_todo) echo_c FAILED " -> [$TODO]"
-                _no_forced_log=1
-                prev_failed=0
-                ((++failed))
-                ((++unimplemented))
-                ;;
-            $r_fail) echo_c FAILED " -> [$FAILED]"
-                ((++failed))
-                ;;
-
-            $r_fatal|$r_fatal2) echo_c FATAL " [FATAL] Failed to execute $( ((r==r_fatal)) && echo 'preset' || echo 'setup')"
-                cat "$log_file"
-                return $r_fatal
-                ;;
-            $r_cnf) echo_c FATAL " [FATAL] Command not found. Aborting."
-                cat "$log_file"
-                return $r_fatal
-                ;;
-
-            $r_warn) echo_c WARN " [WARNING] Failed to execute some environmental method"
-                ;;
-
-            *) echo " -> [UNK STATE:$r]"
-                ;;
-        esac
-        ((r==$r_warn || r==$r_fatal || r==$r_cnf || SHOW_OUTPUT)) && cat "$log_file" || {
-            ((r && SHOW_FAILED && !_no_forced_log )) && cat "$log_file"
+        ## reset, if found
+        [[ -n "$reset" ]] && {
+            $reset || { echo "WARN: failed to execute '$reset'!"; }
         }
-    done
+
+        echo
+        echo -e "-> [$((total-failed))/$total] ($failed failure$(((failed>1)) && echo s)$(((unimplemented)) && echo ", $unimplemented being unimplemented test$(((unimplemented>1))&& echo s)"))"
+        exit $r
+    )
 }
 
 ## ----- main
@@ -699,38 +706,31 @@ run() {
         echo -e "${INV}Running test class ${BOLD}${CYAN}$fr${RST}"
         _run_tests "$ff" "$t"
         r=$?; (( r == $r_fatal )) && break
-        echo
-        echo -e "-> [$((total-failed))/$total] ($failed failure$(((failed>1)) && echo s)$(((unimplemented)) && echo ", $unimplemented being unimplemented test$(((unimplemented>1))&& echo s)"))"
+        #echo
+        #echo -e "-> [$((total-failed))/$total] ($failed failure$(((failed>1)) && echo s)$(((unimplemented)) && echo ", $unimplemented being unimplemented test$(((unimplemented>1))&& echo s)"))"
     done
 }
 
 ARGS=()
 TEST_DIR=tests
-ignore_params=0
 while (($#)); do
-    if ((ignore_params));then
-        ARGS+=( "$1" )
-    else
-        case "$1" in
-            -h|--help) usage; exit 0;;
-            -vv|-vvv|--very-verbose) SHOW_OUTPUT=1;;
-            -v|--verbose) SHOW_FAILED=1;;
-            -C|--no-color) NO_COLORS=1;;
-            -c|--color) NO_COLORS=0;;
-            -dd|--extra-debug) DEBUG=2;;
-            -d|--debug) DEBUG=1;;
-            -D|--DEBUG) DEBUG_BTS=1;;
-            -q|--quiet) QUIET=1; SHOW_FAILED=0;;
-            -qq|--very-quiet|-s|--silent) QUIET=1; SHOW_FAILED=0; SHOW_OUTPUT=0;;
-            -l|--list|--list-tests) LIST_ONLY=1;;
-            -t|--tests-dir) TEST_DIR="$2"; shift;;
-            -r|--project-root) PROJECT_ROOT="$2"; shift;;
-            --) ignore_params=1;;
-            -*) echo "Unknown parameter: $1" >&2; exit 1;;
-            #-i|--interactive) LIST_ONLY=1; INTERACTIVE=1;;
-            *) ARGS+=( "$1" );;
-        esac
-    fi
+    case "$1" in
+        -h|--help) usage; exit 0;;
+        -vv*|--very-verbose) SHOW_OUTPUT=1;;
+        -v|--verbose) SHOW_FAILED=1;;
+        -C|--no-color) NO_COLORS=1;;
+        -c|--color) NO_COLORS=0;;
+        -dd|--extra-debug) DEBUG=2;;
+        -d|--debug) DEBUG=1;;
+        -D|--DEBUG) DEBUG_BTS=1;;
+        -q|--quiet) QUIET=1; SHOW_FAILED=0;;
+        -qq|--very-quiet|-s|--silent) QUIET=1; SHOW_FAILED=0; SHOW_OUTPUT=0;;
+        -l|--list|--list-tests) LIST_ONLY=1;;
+        -t|--tests-dir) TEST_DIR="$2"; shift;;
+        -r|--project-root) PROJECT_ROOT="$2"; shift;;
+        #-i|--interactive) LIST_ONLY=1; INTERACTIVE=1;;
+        *) ARGS+=( "$1" );;
+    esac
     shift
 done
 !((NO_COLORS)) && _set_colors
