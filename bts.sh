@@ -461,6 +461,16 @@ _run_tests() {
     local _is_last=0
 
     (
+        _trap_main_exit() {
+            local retval=$?
+            \rm -f "$main_tmp_sh" "${main_tmp_sh}.log"
+            exit $retval
+        }
+        trap '_trap_main_exit' EXIT
+        trap '_trap_main_exit' SIGINT
+        trap '_trap_main_exit' SIGTERM
+        trap '_trap_main_exit' KILL
+
         failed=0
         unimplemented=0
         ## prepare tests
@@ -479,14 +489,13 @@ _run_tests() {
             exec 8>&1
             exec 9>&2
             local pre_log
-            pre_log="$main_tmp_sh.log"
+            pre_log="${main_tmp_sh}.log"
             __preset_res=0
             $preset > "$pre_log" 2>&1 || __preset_res=1
             exec 1>&8
             exec 2>&9
             if ((__preset_res)) || grep -q "command not found" "$pre_log"; then
                 __preset_res=1
-                #grep -q 'command not found' "$pre_log" && cat "$pre_log" && \rm -f "$pre_log" && exit $r_fatal
                 echo "Preset failed to execute:" >&2
                 cat "$pre_log" >&2
             fi
@@ -496,6 +505,7 @@ _run_tests() {
 
         r=0
         ## execute tests
+        # shellcheck disable=SC2068
         for t in ${l_tests[@]}; do
             ((++_cur >= _end)) && _is_last=1
             ((++n)); nn=$(printf "%02d" "$n")
@@ -506,8 +516,8 @@ _run_tests() {
             (
                 exec 8>&1
                 exec 9>&2
-                exec 1>>$log_file
-                exec 2>>$log_file
+                exec 1>>"$log_file"
+                exec 2>>"$log_file"
 
                 echo "--- [$t] ----"
 
@@ -553,7 +563,7 @@ _run_tests() {
                     echo "--- [$( ((retval)) && echo $FAILED || echo $OK)]: $t --------"
                     echo
                     local err_line=$(sed -n ${line}p "$f"|xargs|tr -d $'\n');
-                    local trc="(--> [${FUNCNAME[@]}, ${BASH_LINENO[@]}])"
+                    local trc="(--> [${FUNCNAME[*]}, ${BASH_LINENO[*]}])"
                     local t=( "Failed at ${sf}:${func}:${fline}" ": ${err_line:-$BASH_COMMAND}" "$trc" "TRAP TO RETURN $retval" )
                     local max=0; for l in "${t[@]}"; do s=${#l}; (( s > max )) && max=$s; done; ((max+=4))
                     echo -e "${BOLD}${BLUE}-- traces ------------${RST}"
@@ -657,7 +667,6 @@ run() {
     \rm -rf "$results_base"
     mkdir -p "$results_base"
     local results
-    local total_run=0
     local f
     ## load local env
     if [[ -f 'bts.env' ]]; then
@@ -698,7 +707,6 @@ run() {
             continue
         }
 
-        #((total_run++)) && echo
         local total=0
         local failed=0
         local fr=${ff##*/}
