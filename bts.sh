@@ -196,18 +196,22 @@ asset() {
     local _a="${1:-Missing asset name}"
     local d="${2:-}"
     local a
-    a=$(find "$TEST_DIR/assets/${__bts_this}" -maxdepth 1 -regextype egrep \
-        -regex "$TEST_DIR/assets/${__bts_this}/${t}[_.]+${_a}(.gz|.bz2)?" \
-        -or \
-        -regex "$TEST_DIR/assets/${__bts_this}/${_a}(.gz|.bz2)?" 2>/dev/null | grep '.' \
-        || find "$TEST_DIR/assets" -maxdepth 1 -regextype egrep \
-        -regex "$TEST_DIR/assets/${t}[_]*${_a}(.gz|.bz2)?" \
-        -or \
-        -regex "$TEST_DIR/assets/${_a}(.gz|.bz2)?" 2>/dev/null | grep '.'
-        ) || {
-            echo "Can't find asset '$_a' in '$TEST_DIR/assets/${__bts_this}' nor '$TEST_DIR/assets'"
-            return 1
-        }
+    if [[ -e "$TEST_DIR/assets/${_a}" ]]; then
+        a="$TEST_DIR/assets/${_a}"
+    else
+        a=$(find "$TEST_DIR/assets/${__bts_this}" -maxdepth 1 -regextype egrep \
+            -regex "$TEST_DIR/assets/${__bts_this}/${t}[_.]+${_a}(.gz|.bz2)?" \
+            -or \
+            -regex "$TEST_DIR/assets/${__bts_this}/${_a}(.gz|.bz2)?" 2>/dev/null | grep '.' \
+            || find "$TEST_DIR/assets" -maxdepth 1 -regextype egrep \
+            -regex "$TEST_DIR/assets/${t}[_]*${_a}(.gz|.bz2)?" \
+            -or \
+            -regex "$TEST_DIR/assets/${_a}(.gz|.bz2)?" 2>/dev/null | grep '.'
+            ) || {
+                echo "Can't find asset '$_a' in '$TEST_DIR/assets/${__bts_this}' nor '$TEST_DIR/assets'" >&2
+                return 1
+            }
+    fi
     ((filename_only)) && echo "$a" && return 0
     local unc=cat
     [[ "${a}" =~ \.gz$ ]] && unc=zcat && ext=.gz
