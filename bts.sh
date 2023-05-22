@@ -503,7 +503,7 @@ _run_tests() {
             pre_log="${main_tmp_sh}.log"
             __preset_res=0
             if ((VERBOSE)); then
-                "$preset" 2>&1 | tee "$pre_log" >&9 || __preset_res=1
+                "$preset" > >(tee "$pre_log" >&9) 2>&1 || __preset_res=1
             else
                 "$preset" > "$pre_log" 2>&1 || __preset_res=1
             fi
@@ -616,9 +616,9 @@ _run_tests() {
                 echo -en "[$n/${total}] ${BOLD}${WHITE}${ts}${RST}" >&8
                 if ((VERBOSE)); then
                     echo >&9
-                    "$t" | tee -a "$log_file" >&9; rr=$?
+                    $t > >(tee -a "$log_file" >&9) 2>&1; rr=$?
                 else
-                    "$t"; rr=$?
+                    $t; rr=$?
                 fi
 
                 [[ -n "$teardown" ]] && {
