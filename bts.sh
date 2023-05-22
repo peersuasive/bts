@@ -615,6 +615,7 @@ _run_tests() {
 
                 echo -en "[$n/${total}] ${BOLD}${WHITE}${ts}${RST}" >&8
                 if ((VERBOSE)); then
+                    echo >&9
                     "$t" | tee -a "$log_file" >&9; rr=$?
                 else
                     "$t"; rr=$?
