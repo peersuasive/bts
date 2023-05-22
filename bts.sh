@@ -131,6 +131,7 @@ MSG_STATUS=
 QUIET=
 SHOW_OUTPUT=
 SHOW_FAILED=
+VERBOSE=
 
 exp_vars+=( OK FAILED FATAL TODO QUIET DEBUG )
 
@@ -281,6 +282,8 @@ export SHOULD_FAIL=0
 }
 
 assert() {
+    local has_err=""
+has_err=$(
     local NOT=0
     local sf=${f##*/}
     [[ "$1" == NOT || "$1" == not ]] && NOT=1 && shift
@@ -385,8 +388,11 @@ assert() {
             }
         }
         return $r
-    }
-    return 0
+    } || return 0
+) && return 0 || {
+    if [[ -n "$has_err" ]]; then echo "$has_err"; fi
+    return 1
+}
 }
 
 ## ------ params
@@ -396,6 +402,7 @@ INTERACTIVE=0
 SHOW_OUTPUT=0
 SHOW_FAILED=1
 NO_COLORS=0
+VERBOSE=0
 
 oldIFS=$IFS
 home="$( dirname "$(readlink -f "$0")" )"
@@ -495,13 +502,19 @@ _run_tests() {
             local pre_log
             pre_log="${main_tmp_sh}.log"
             __preset_res=0
-            $preset > "$pre_log" 2>&1 || __preset_res=1
+            if ((VERBOSE)); then
+                "$preset" 2>&1 | tee "$pre_log" >&9 || __preset_res=1
+            else
+                "$preset" > "$pre_log" 2>&1 || __preset_res=1
+            fi
             exec 1>&8
             exec 2>&9
             if ((__preset_res)) || grep -q "command not found" "$pre_log"; then
                 __preset_res=1
                 echo "Preset failed to execute:" >&2
-                cat "$pre_log" >&2
+                if ((!VERBOSE)); then
+                    cat "$pre_log" >&2
+                fi
             fi
             \rm -f "$pre_log"
             ((__preset_res)) && exit $r_fatal
@@ -601,7 +614,11 @@ _run_tests() {
                 [[ -n "$setup" ]] && { $setup || exit $r_fatal2; }
 
                 echo -en "[$n/${total}] ${BOLD}${WHITE}${ts}${RST}" >&8
-                $t; rr=$?
+                if ((VERBOSE)); then
+                    "$t" | tee -a "$log_file" >&9; rr=$?
+                else
+                    "$t"; rr=$?
+                fi
 
                 [[ -n "$teardown" ]] && {
                     $teardown || { echo "WARN: failed to execute '$teardown'!"; ((!rr)) && rr=$r_warn; }
@@ -648,9 +665,11 @@ _run_tests() {
                 *) echo " -> [UNK STATE:$r]"
                     ;;
             esac
-            ((r==$r_warn || r==$r_fatal || r==$r_cnf || SHOW_OUTPUT)) && cat "$log_file" || {
-                ((r && SHOW_FAILED && !_no_forced_log )) && cat "$log_file"
-            }
+            if ((!VERBOSE)); then
+                ((r==$r_warn || r==$r_fatal || r==$r_cnf || SHOW_OUTPUT)) && cat "$log_file" || {
+                    ((r && SHOW_FAILED && !_no_forced_log )) && cat "$log_file"
+                }
+            fi
         done
 
         ## reset, if found
@@ -728,14 +747,14 @@ TEST_DIR=tests
 while (($#)); do
     case "$1" in
         -h|--help) usage; exit 0;;
-        -vv*|--very-verbose) SHOW_OUTPUT=1;;
-        -v|--verbose) SHOW_FAILED=1;;
+        -vv*|--very-verbose) SHOW_OUTPUT=1; VERBOSE=1;;
+        -v|--verbose) SHOW_FAILED=1; VERBOSE=1;;
         -C|--no-color) NO_COLORS=1;;
         -c|--color) NO_COLORS=0;;
         -dd|--extra-debug) DEBUG=2;;
         -d|--debug) DEBUG=1;;
         -D|--DEBUG) DEBUG_BTS=1;;
-        -q|--quiet) QUIET=1; SHOW_FAILED=0;;
+        -q|--quiet) QUIET=1; SHOW_FAILED=0; VERBOSE=0;;
         -qq|--very-quiet|-s|--silent) QUIET=1; SHOW_FAILED=0; SHOW_OUTPUT=0;;
         -l|--list|--list-tests) LIST_ONLY=1;;
         -t|--tests-dir) TEST_DIR="$2"; shift;;
