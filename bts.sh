@@ -183,6 +183,9 @@ DBG() {
 trace() {
     echo "$@" >&2
 }
+ltrace() {
+    echo "$@" >&9
+}
 stdout() {
     echo "$@" >&7
 }
@@ -227,7 +230,7 @@ asset() {
     fi
 }
 
-exp_cmds_pre+=( fail ok fatal todo dbg trace )
+exp_cmds_pre+=( fail ok fatal todo dbg trace ltrace )
 
 @load() {
     local f="$1"; shift
