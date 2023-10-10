@@ -294,7 +294,7 @@ has_err=$(
     local _not=$( ((NOT)) && echo ' NOT' )
     local is_not=$( ((NOT)) && echo 'NOT ' )
     local a="$1"; shift
-    local res1 res2 r
+    local r
     case "${a^^}" in
         OK|TRUE|KO|FALSE|EQUALS|EMPTY|MATCH|SAME|SAME~|EXISTS|FILE~|FILE|DIR|DIR~|SAMECOL|SAMECOL~) a=${a^^};;
         *) echo "unknown assertion '$a' (${sf}:${FUNCNAME[1]}:${BASH_LINENO[0]})"; return $r_fail;;
@@ -364,7 +364,6 @@ has_err=$(
             cmp_diff=$(bts_diff -u <( awk -F"${sep}" '{print $'${col}'}' <( sort -k${col} ${exp_f:-<(echo -e "$2")} ) ) <( awk -F"${sep}" '{print $'${col}'}' <( sort -k${col} ${cmp_f:-<(echo -e "$1")} ) ) 2>/dev/null) && r=0 || r=1;;
 
     esac
-    local old_r=$r
     ((NOT)) && r=$((!r))
     ((r)) && {
         local line func
@@ -484,12 +483,11 @@ _run_tests() {
         trap '_trap_main_exit' EXIT
         trap '_trap_main_exit' SIGINT
         trap '_trap_main_exit' SIGTERM
-        trap '_trap_main_exit' KILL
 
         failed=0
         unimplemented=0
         ## prepare tests
-        __bts_this="$(basename $( readlink -f "$f" ))"; __bts_this="${__bts_this%.sh}"
+        __bts_this="$(basename "$( readlink -f "$f" )")"; __bts_this="${__bts_this%.sh}"
         main_tmp_sh="$TEST_DIR/.${__bts_this}_bts.sh"
         cat "$f" > "$main_tmp_sh"
         sed -ri 's;%\{this\};'"${__bts_this}"';g' "$main_tmp_sh"
@@ -699,7 +697,7 @@ run() {
     local f
     ## load local env
     if [[ -f 'bts.env' ]]; then
-        eval $(while read l; do
+        eval $(while read -r l; do
             [[ "$l" =~ ^# || ! "$l" =~ = ]] && continue
             ! [[ "$l" =~ ^[\t\ ]*export[\t\ ]+ ]] && l="export $l"
             echo $l
