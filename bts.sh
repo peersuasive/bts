@@ -218,13 +218,14 @@ asset() {
     fi
     ((filename_only)) && echo "$a" && return 0
     local unc=cat
-    [[ "${a}" =~ \.gz$ ]] && unc=zcat && ext=.gz
-    [[ "${a}" =~ \.bz2$ ]] && unc=bzcat && ext=.bz2
+    local ext=."${a##*.}"
+    [[ "$ext" == ".gz" ]] && unc=$(which gzcat || which zcat)
+    [[ "${a}" == ".bz2" ]] && unc=bzcat
 
     if [[ -d "$d" ]]; then
-        $unc "$a" > "$d/${_a%${ext}}"
+        $unc "$a" > "$d/${_a"%${ext}"}"
     elif [[ -z "$d" ]]; then
-        $unc $a
+        $unc "$a"
     else
         $unc "$a" > "$d"
     fi
