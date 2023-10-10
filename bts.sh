@@ -240,7 +240,19 @@ exp_cmds_pre+=( fail ok fatal todo dbg trace ltrace )
     set -- "$args"
     source "$abs_path"
 }
-exp_utils+=( @load )
+
+BTS_CONT=0
+BTS_CONT_NAME=
+WITHIN_CONT=${WITHIN_CONT:-0}
+@bts_cont() {
+    local cont_state="${1:-}"
+    local cont_name="${2:-}"
+    if [[ "${cont_state,,}" == false || "$cont_state" == 0 ]]; then return 1; fi
+    [[ -f "$cont_state" ]] && BTS_CONT="$cont_state" || BTS_CONT="Dockerfile.bts"
+    BTS_CONT_NAME="${cont_name:+bts/${cont_name#bts/}}"
+    return 0
+}
+exp_utils+=( @load @bts_cont )
 
 export_cmds() {
     for c in 'setup' 'teardown' ${exp_cmds[@]}; do
@@ -410,6 +422,7 @@ VERBOSE=0
 oldIFS=$IFS
 home="$( dirname "$(readlink -f "$0")" )"
 here="$(readlink -f "$PWD")"
+guessed_project="$(basename "$here")"
 results_base="$here/results"
 
 ## ------ functions
@@ -452,10 +465,56 @@ EOS
     return 0
 }
 
+__wants_container() {
+    grep '^[[:space:]]*@bts_cont' "$1"
+}
+_run_in_docker() {
+    local f="${1:?Missing test class}"
+    local sf="${f##*/}"
+
+    ## execute in container if asked
+    (( WITHIN_CONT )) && return 1
+    if cont_args=$(grep '^[[:space:]]*@bts_cont' "$f"); then
+        if [[ "$cont_args" =~ ^[[:space:]]*@bts_cont[[:space:]]*(.*)$ ]]; then
+            # shellcheck disable=SC2086
+            if @bts_cont ${BASH_REMATCH[1]}; then
+                local GID="${GID:-$(id -g)}"
+                local cont_name="$BTS_CONT_NAME"
+                if [[ -z "$cont_name" ]]; then
+                    local cn="${sf%.*}"
+                    cont_name="bts/$guessed_project/${cn//:/_}"
+                fi
+                #echo "cont name: '$cont_name', sf: '$sf' => '${sf//:/_}' ('$f')"
+                local created_at
+                if ! created_at="$(docker inspect -f '{{ .Created }}' "${cont_name}:latest" 2>/dev/null)" \
+                    || (( $(date --date "$(stat -c '%y' Dockerfile.bts)" +"%s") > $(date --date "$created_at" +"%s") ))
+                then
+                    echo "Building image: '$cont_name' (from '$BTS_CONT')"
+                    ## (re)build container if needed, execute within
+                    docker build --build-arg "UID=$UID" --build-arg "GID=$GID" -f "$BTS_CONT" -t "${cont_name}:latest" . 2>&1 || {
+                        return 1
+                    }
+                fi
+                echo "Starting test '$f' within container"
+                ## restart within container
+                docker run --rm \
+                    -e WITHIN_CONT=1 \
+                    -v "$PWD":"$PWD" \
+                    -w "$PWD" \
+                    -u "${UID}:$(id -g)" \
+                    "$cont_name" ./bts/bts.sh "$f"
+                return $?
+            fi
+        fi
+    fi
+    return 1
+}
+
 _run_tests() {
     local prev_failed=0
     local f="${1:?Missing test class}"
     local sf="${f##*/}"
+
     local l_t="$2"
     local l_tests=( ${l_t:-${tests[@]}} )
     local setup="${tests_ext[setup]:-}"
@@ -738,8 +797,13 @@ run() {
         local failed=0
         local fr=${ff##*/}
         results="$results_base/${fr%.*}"; mkdir -p "$results"
-        echo -e "${INV}Running test class ${BOLD}${CYAN}$fr${RST}"
-        _run_tests "$ff" "$t"
+        if (( ! WITHIN_CONT )) && __wants_container "$ff"; then
+            echo -e "(running ${BOLD}${CYAN}$fr${RST} in ${INV}container${RST})"
+            _run_in_docker "$ff"
+        else
+            echo -e "${INV}Running test class ${BOLD}${CYAN}$fr${RST}"
+            _run_tests "$ff" "$t"
+        fi
         local r=$?
         (( r )) && state=1
         (( r == r_fatal )) && break
