@@ -684,7 +684,7 @@ _run_tests() {
 
         echo
         echo -e "-> [$((total-failed))/$total] ($failed failure$(((failed>1)) && echo s)$(((unimplemented)) && echo ", $unimplemented being unimplemented test$(((unimplemented>1))&& echo s)"))"
-        exit $r
+        ((failed)) && exit 1 || exit 0
     )
 }
 
@@ -694,6 +694,7 @@ run() {
     local f
     \rm -rf "$results_base"
     mkdir -p "$results_base"
+    local state=0
     local results
     local f
     ## load local env
@@ -741,10 +742,13 @@ run() {
         results="$results_base/${fr%.*}"; mkdir -p "$results"
         echo -e "${INV}Running test class ${BOLD}${CYAN}$fr${RST}"
         _run_tests "$ff" "$t"
-        r=$?; (( r == $r_fatal )) && break
+        local r=$?
+        (( r )) && state=1
+        (( r == r_fatal )) && break
         #echo
         #echo -e "-> [$((total-failed))/$total] ($failed failure$(((failed>1)) && echo s)$(((unimplemented)) && echo ", $unimplemented being unimplemented test$(((unimplemented>1))&& echo s)"))"
     done
+    return $state
 }
 
 ARGS=()
