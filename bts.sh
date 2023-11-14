@@ -307,8 +307,11 @@ has_err=$(
     local is_not=$( ((NOT)) && echo 'NOT ' )
     local a="$1"; shift
     local r
-    case "${a^^}" in
-        OK|TRUE|KO|FALSE|EQUALS|EMPTY|MATCH|SAME|SAME~|EXISTS|FILE~|FILE|DIR|DIR~|SAMECOL|SAMECOL~) a=${a^^};;
+    local a_cap="${a^^}"
+    case "${a_cap}" in
+        OK|TRUE|KO|FALSE|EQUALS|EMPTY|MATCH|SAME|SAME~|EXISTS|FILE~|FILE|DIR|DIR~|SAMECOL|SAMECOL~)
+            a="${a_cap}"
+            ;;
         *) echo "unknown assertion '$a' (${sf}:${FUNCNAME[1]}:${BASH_LINENO[0]})"; return $r_fail;;
     esac
     set -- "$@"
@@ -317,7 +320,7 @@ has_err=$(
     local exp="${2:-}"; [[ ! "${2+x}" == "x" ]] && unset exp
     local cmp_f exp_f
     local cmp_diff
-    case $a in
+    case "$a" in
         TRUE|FALSE)
             case "$cmp" in
                 [Tt][Rr][Uu][Ee]) r=0;;
