@@ -4,6 +4,7 @@
 set -o pipefail
 set -u
 
+ORIG_ARGS=()
 DEBUG=${DEBUG:-0}
 DEBUG_BTS=${DEBUG_BTS:-0}
 
@@ -498,14 +499,14 @@ _run_in_docker() {
                         return 1
                     }
                 fi
-                echo "Starting test '$f' within container"
+                echo "Starting test '$f' within container (with options: '${ORIG_ARGS[@]}')"
                 ## restart within container
                 docker run --rm \
                     -e WITHIN_CONT=1 \
                     -v "$PWD":"$PWD" \
                     -w "$PWD" \
                     -u "${UID}:$(id -g)" \
-                    "$cont_name" ./bts/bts.sh "$f"
+                    "$cont_name" ./bts/bts.sh ${ORIG_ARGS[@]} "$f"
                 return $?
             fi
         fi
@@ -834,8 +835,12 @@ while (($#)); do
         -t|--tests-dir) TEST_DIR="$2"; shift;;
         -r|--project-root) PROJECT_ROOT="$2"; shift;;
         #-i|--interactive) LIST_ONLY=1; INTERACTIVE=1;;
-        *) ARGS+=( "$1" );;
+        *) ARGS+=( "$1" )
+            shift
+            continue
+            ;;
     esac
+    ORIG_ARGS+=( "$1" )
     shift
 done
 !((NO_COLORS)) && _set_colors
