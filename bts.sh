@@ -775,9 +775,11 @@ run() {
     done
     for f in ${tests_to_run[@]}; do
         local ff="$f"
+        local l_ff="$ff"
         local t=''
         [[ "$f" =~ ^([^:]+):(.+)$ ]] && {
             ff="${BASH_REMATCH[1]}"
+            l_ff="$ff"
             t="${BASH_REMATCH[2]}"
         }
         ff="$(readlink -f "$ff")"; ! [[ -f "$ff" ]] && echo -e "${INV}[WARNING] Can't find test class '$ff'!${RST}" && continue
@@ -803,7 +805,7 @@ run() {
         results="$results_base/${fr%.*}"; mkdir -p "$results"
         if (( ! WITHIN_CONT )) && __wants_container "$ff"; then
             echo -e "(running ${BOLD}${CYAN}$fr${RST} in ${INV}container${RST})"
-            _run_in_docker "$ff"
+            _run_in_docker "$l_ff"
         else
             echo -e "${INV}Running test class ${BOLD}${CYAN}$fr${RST}"
             _run_tests "$ff" "$t"
