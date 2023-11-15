@@ -499,8 +499,10 @@ _run_in_docker() {
                         return 1
                     }
                 fi
-                echo "Starting test '$f' within container (with options: '${ORIG_ARGS[@]}')"
+                # shellcheck disable=SC2016
+                echo "Starting test '$f' within container ${ORIG_ARGS:+(with options: '${ORIG_ARGS[*]}'})"
                 ## restart within container
+                # shellcheck disable=SC2068
                 docker run --rm \
                     -e WITHIN_CONT=1 \
                     -v "$PWD":"$PWD" \
