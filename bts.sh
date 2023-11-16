@@ -502,11 +502,12 @@ _run_in_docker() {
                 # shellcheck disable=SC2016
                 echo "Starting test '$f' within container ${ORIG_ARGS:+(with options: '${ORIG_ARGS[*]})'}"
                 ## restart within container
+                local rp=$(readlink -f "$PWD")
                 # shellcheck disable=SC2068
                 docker run --rm \
                     -e WITHIN_CONT=1 \
-                    -v "$PWD":"$PWD" \
-                    -w "$PWD" \
+                    -v "$rp":"$rp" \
+                    -w "$rp" \
                     -u "${UID}:$(id -g)" \
                     "$cont_name" ./bts/bts.sh ${ORIG_ARGS[@]} "$f"
                 return $?
@@ -777,11 +778,9 @@ run() {
     done
     for f in ${tests_to_run[@]}; do
         local ff="$f"
-        local l_ff="$ff"
         local t=''
         [[ "$f" =~ ^([^:]+):(.+)$ ]] && {
             ff="${BASH_REMATCH[1]}"
-            l_ff="$ff"
             t="${BASH_REMATCH[2]}"
         }
         ff="$(readlink -f "$ff")"; ! [[ -f "$ff" ]] && echo -e "${INV}[WARNING] Can't find test class '$ff'!${RST}" && continue
@@ -807,7 +806,7 @@ run() {
         results="$results_base/${fr%.*}"; mkdir -p "$results"
         if (( ! WITHIN_CONT )) && __wants_container "$ff"; then
             echo -e "(running ${BOLD}${CYAN}$fr${RST} in ${INV}container${RST})"
-            _run_in_docker "$l_ff"
+            _run_in_docker "$ff"
         else
             echo -e "${INV}Running test class ${BOLD}${CYAN}$fr${RST}"
             _run_tests "$ff" "$t"
