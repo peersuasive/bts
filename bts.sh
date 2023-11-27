@@ -613,9 +613,9 @@ _run_in_docker() {
                 ## -it => allow ctrl-c
                 docker run --rm \
                     -it \
-                    -e "http_proxy=${http_proxy:-$HTTP_PROXY:-}}" \
-                    -e "https_proxy=${https_proxy:-$HTTPS_PROXY:-}}" \
-                    -e "no_proxy=${no_proxy:-$NO_PROXY:-}}" \
+                    -e "http_proxy=${http_proxy:-${HTTP_PROXY:-}}" \
+                    -e "https_proxy=${https_proxy:-${HTTPS_PROXY:-}}" \
+                    -e "no_proxy=${no_proxy:-${NO_PROXY:-}}" \
                     -e WITHIN_CONT=1 \
                     -v "$rp":"$rp" \
                     -v "$rp_tests":"$rp_tests":ro \
