@@ -8,6 +8,11 @@ ORIG_ARGS=()
 DEBUG=${DEBUG:-0}
 DEBUG_BTS=${DEBUG_BTS:-0}
 
+## try to use bash's 4.4+ Parameters Transformations to keep empty arguments by quoting them
+bts_bash_tr=0
+(( "${BASH_VERSINFO[0]:-0}${BASH_VERSINFO[1]:-0}" > 43 )) && bts_bash_tr=1;
+export bts_bash_tr
+
 usage() {
     cat <<EOU
 Usage: ${0##*/} [-h] [OPTIONS] [test...]
@@ -236,6 +241,14 @@ asset() {
 
 exp_cmds_pre+=( fail ok fatal todo dbg trace ltrace )
 
+@escape_parameters() {
+    if (( bts_bash_tr )); then
+        echo "${@@Q}"
+    else
+        printf "%q " "$@"
+    fi
+}
+
 @load() {
     local f="$1"; shift
     local args="${@:-}"
@@ -291,7 +304,7 @@ WITHIN_CONT=${WITHIN_CONT:-0}
     BTS_CONT_NAME="${cont_name:+bts/${cont_name#bts/}}"
     return 0
 }
-exp_utils+=( @load @bts_cont )
+exp_utils+=( @load @bts_cont @escape_parameters )
 
 export_cmds() {
     for c in 'setup' 'teardown' ${exp_cmds[@]}; do
