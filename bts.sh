@@ -589,9 +589,11 @@ _run_in_docker() {
                     || (( $(date --date "$(stat -c '%y' Dockerfile.bts)" +"%s") > $(date --date "$created_at" +"%s") ))
                 then
                     echo "Building image: '$cont_name' (from '$BTS_CONT')"
+                    ## some discrepency between existing container and wanted one, probably coming from a more recent -- force rebuild
+                    [[ -n "$created_at" ]] && no_cache=1
                     ## (re)build container if needed, execute within
                     docker build \
-                        --build-arg "http_proxy=${http_proxy:-${HTTP_PROXY:-}}" \
+                        ${no_cache:+--no-cache} --build-arg "http_proxy=${http_proxy:-${HTTP_PROXY:-}}" \
                         --build-arg "https_proxy=${https_proxy:-${HTTPS_PROXY:-}}" \
                         --build-arg "no_proxy=${no_proxy:-${NO_PROXY:-}}" \
                         --build-arg "UID=$UID" \
