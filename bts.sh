@@ -555,6 +555,7 @@ __wants_container() {
 }
 _run_in_docker() {
     local f="${1:?Missing test class}"
+    local t="${2:-}"
     local sf="${f##*/}"
 
     ## execute in container if asked
@@ -581,16 +582,21 @@ _run_in_docker() {
                     }
                 fi
                 # shellcheck disable=SC2016
-                echo "Starting test '$f' within container ${ORIG_ARGS:+(with options: '${ORIG_ARGS[*]})'}"
+                DBG "Starting test '$f' within container ${ORIG_ARGS:+(with options: '${ORIG_ARGS[*]})'}"
                 ## restart within container
                 local rp=$(readlink -f "$PWD")
+                local rp_tests="${rp}/${TEST_DIR}"
+
                 # shellcheck disable=SC2068
+                ## -it => allow ctrl-c
                 docker run --rm \
+                    -it \
                     -e WITHIN_CONT=1 \
                     -v "$rp":"$rp" \
+                    -v "$rp_tests":"$rp_tests":ro \
                     -w "$rp" \
                     -u "${UID}:$(id -g)" \
-                    "$cont_name" ./bts/bts.sh ${ORIG_ARGS[@]} "$f"
+                    "$cont_name" ./bts/bts.sh ${ORIG_ARGS[@]} "$f${t:+:$t}"
                 return $?
             fi
         fi
@@ -637,7 +643,8 @@ _run_tests() {
         unimplemented=0
         ## prepare tests
         __bts_this="$(basename "$( readlink -f "$f" )")"; __bts_this="${__bts_this%.sh}"
-        main_tmp_sh="$TEST_DIR/.${__bts_this}_bts.sh"
+        #main_tmp_sh="$TEST_DIR/.${__bts_this}_bts.sh"
+        main_tmp_sh="/tmp/${__bts_this}_bts.sh"
         cat "$f" > "$main_tmp_sh"
         sed -ri 's;%\{this\};'"${__bts_this}"';g' "$main_tmp_sh"
         sed -ri 's;%\{assets\};'"${TEST_DIR}/assets/${__bts_this}"';g' "$main_tmp_sh"
@@ -660,7 +667,7 @@ _run_tests() {
             fi
             exec 1>&8
             exec 2>&9
-            if ((__preset_res)) || grep -q "command not found" "$pre_log"; then
+            if ((__preset_res)) || grep -q "command not found" "$pre_log" 2>/dev/null; then
                 __preset_res=1
                 echo "Preset failed to execute:" >&2
                 if ((!VERBOSE)); then
@@ -892,12 +899,14 @@ run() {
         local total=0
         local failed=0
         local fr=${ff##*/}
+        local in_cont=
         results="$results_base/${fr%.*}"; mkdir -p "$results"
         if (( ! WITHIN_CONT )) && __wants_container "$ff"; then
-            echo -e "(running ${BOLD}${CYAN}$fr${RST} in ${INV}container${RST})"
-            _run_in_docker "$ff"
+            DBG "(running ${BOLD}${CYAN}$fr${RST} in ${INV}container${RST})"
+            _run_in_docker "$ff" "$t"
         else
-            echo -e "${INV}Running test class ${BOLD}${CYAN}$fr${RST}"
+            ((WITHIN_CONT)) && in_cont=1
+            echo -e "${INV}Running test class ${BOLD}${CYAN}$fr${RST}${in_cont:+ ${BLUEB}[in container]${RST}}"
             _run_tests "$ff" "$t"
         fi
         local r=$?
