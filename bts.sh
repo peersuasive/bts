@@ -54,11 +54,13 @@ Utils (functions):
         samecol  compare same column from two files; column number and separator can be passed after files (default: column 1, comma (;) as separator)
         samecol~ compare same column from two unordered files; column number and separator can be passed after files (default: column 1, comma (;) as separator)
         exists   assert contents exist
+        err      assert last error log contains expression (requires @capture_logs)
     asset [-n] <asset[.gz|bz2]> [dest-dir|dest-file]
         try its best to find file in 'TEST_DIR/assets/[test_name]...' and send it to destination or stdout
         -n       pass full path to ressource, instead of contents
     @should_fail <expression>
                 assert next evaluation fails as expected
+    @capture_log capture logs (required by assert err)
 
 Utils (class)
     @load                       load a file relative to test dir; useful to load common tests or functions, for instance
@@ -172,11 +174,11 @@ todo() {
 }
 
 dbg() {
-    ((!QUIET && DEBUG)) && echo -e "${INV}${BOLD}[DBG]${RST} ${BOLD}${WHITE}$@${RST}" >&2
+    ((!QUIET && DEBUG)) && echo -e "${INV}${BOLD}[DBG]${RST} ${BOLD}${WHITE}$@${RST}" >&1
     return 0
 }
 DBG() {
-    ((DEBUG_BTS)) && echo -e "${INV}${BOLD}${BLUE}[BTS]${RST} ${BOLD}${WHITE}$@${RST}" >&2
+    ((DEBUG_BTS)) && echo -e "${INV}${BOLD}${BLUE}[BTS]${RST} ${BOLD}${WHITE}$@${RST}" >&1
     return 0
 }
 
@@ -242,6 +244,42 @@ exp_cmds_pre+=( fail ok fatal todo dbg trace ltrace )
     source "$abs_path"
 }
 
+@todo() {
+    echo "unimplemented: ${FUNCNAME[1]}"
+    return 1
+}
+
+
+BTS_CAPTURED_ERR=
+BTS_CAPTURED_OUT=
+@capture_logs() {
+    local err_log=""
+    local out_log=""
+    local args=()
+    while (($#)); do
+        case "$1" in
+            -e) err_log="$2"; shift;;
+            -o) out_log="$2"; shift;;
+            *) args+=( "$1" )
+        esac
+        shift
+    done
+    [[ -z "$err_log" ]] && {
+        BTS_CAPTURED_ERR="$(mktemp)"
+        err_log="$BTS_CAPTURED_ERR"
+    }
+    [[ -z "$out_log" ]] && {
+        BTS_CAPTURED_OUT="$(mktemp)"
+        out_log="$BTS_CAPTURED_OUT"
+    }
+
+    local r=0
+    ## capture and re-throw for bts
+    ! eval "$(printf "%q " "${args[@]}")" 1> >(tee "$out_log") 2> >(tee "$err_log" >&2) && r=1
+    #[[ -s "$out_log" ]] && cat "$out_log" >&1
+    #[[ -s "$err_log" ]] && cat "$err_log" >&2
+    return $r
+}
 BTS_CONT=0
 BTS_CONT_NAME=
 WITHIN_CONT=${WITHIN_CONT:-0}
@@ -291,10 +329,22 @@ mock_funcs() {
 export SHOULD=0
 export SHOULD_FAIL=0
 @should_fail() {
+    #local cmd="$1"; shift;
+    local args=( "$@" )
     local r
     SHOULD=1
     SHOULD_FAIL=1
-    ( trap - ERR; (! eval "$@") ) && { SHOULD=0; SHOULD_FAIL=0; } && return $r_ok
+    #( trap - ERR; (! eval "$@") ) && { SHOULD=0; SHOULD_FAIL=0; } && return $r_ok
+    ## fix: empty parameters are discarded
+    if (($#>1)); then
+        if (( bts_bash_tr )); then
+            ( trap - ERR; (! eval "${args[@]@Q}") ) && { SHOULD=0; SHOULD_FAIL=0; } && return $r_ok
+        else
+            ( trap - ERR; (! eval "$(printf "%q " "${args[@]}")" ) ) && { SHOULD=0; SHOULD_FAIL=0; } && return $r_ok
+        fi
+    else
+        ( trap - ERR; (! eval "${args[@]}") ) && { SHOULD=0; SHOULD_FAIL=0; } && return $r_ok
+    fi
     fail
 }
 
@@ -310,7 +360,7 @@ has_err=$(
     local r
     local a_cap="${a^^}"
     case "${a_cap}" in
-        OK|TRUE|KO|FALSE|EQUALS|EMPTY|MATCH|SAME|SAME~|EXISTS|FILE~|FILE|DIR|DIR~|SAMECOL|SAMECOL~)
+        OK|TRUE|KO|FALSE|EQUALS|EMPTY|MATCH|SAME|SAME~|EXISTS|FILE~|FILE|DIR|DIR~|SAMECOL|SAMECOL~|ERR|LOG|WARN)
             a="${a_cap}"
             ;;
         *) echo "unknown assertion '$a' (${sf}:${FUNCNAME[1]}:${BASH_LINENO[0]})"; return $r_fail;;
@@ -379,6 +429,37 @@ has_err=$(
             [[ -e "${exp:-}" ]] && exp_f="$exp"||:; [[ -e "$cmp" ]] && cmp_f="$cmp"||:;
             cmp_diff=$(bts_diff -u <( awk -F"${sep}" '{print $'${col}'}' <( sort -k${col} ${exp_f:-<(echo -e "$2")} ) ) <( awk -F"${sep}" '{print $'${col}'}' <( sort -k${col} ${cmp_f:-<(echo -e "$1")} ) ) 2>/dev/null) && r=0 || r=1;;
 
+        ERR)
+            if ! [[ -s "${BTS_CAPTURED_ERR:-}" ]]; then
+                [[ -n "$cmp" ]] && r=1 || r=0
+            else
+                if ! (grep -qF "$cmp" "$BTS_CAPTURED_ERR" || grep -qE "$cmp" "$BTS_CAPTURED_ERR"); then
+                    exp="$(cat "$BTS_CAPTURED_ERR")"
+                    r=1
+                else
+                    r=0
+                fi
+            fi
+            ;;
+        LOG)
+            if ! [[ -s "${BTS_CAPTURED_OUT:-}" ]]; then
+                [[ -n "$cmp" ]] && r=1 || r=0
+            else
+                if ! (grep -qF "$cmp" "$BTS_CAPTURED_OUT" || grep -qE "$cmp" "$BTS_CAPTURED_OUT"); then
+                    exp="$(cat "$BTS_CAPTURED_OUT")"
+                    r=1
+                else
+                    r=0
+                fi
+            fi
+            ;;
+        WARN)
+            (assert err "$cmp" || assert log "$cmp") 1>/dev/null 2>/dev/null && r=0 || {
+                exp=$(cat "$BTS_CAPTURED_OUT" "$BTS_CAPTURED_ERR" 2>/dev/null)
+                r=1
+            }
+            ;;
+
     esac
     ((NOT)) && r=$((!r))
     ((r)) && {
@@ -397,7 +478,7 @@ has_err=$(
         local c="$( sed -n "${line}p" "$f" | sed -e 's/^[\t ]*\(.*\)$/\1/g')"
         echo "-> $c"
         echo "=> assert ${is_not}${a} '${cmp}' ${exp+'$exp'}"
-        [[ "$a" == SAME || "$a" == SAME~ || "$a" == SAMECOL || "$a" == SAMECOL~ || "$a" == EMPTY ]] && {
+        [[ "$a" == SAME || "$a" == SAME~ || "$a" == SAMECOL || "$a" == SAMECOL~ || "$a" == EMPTY || "$a" == MATCH || "$a" == ERR || "$a" == LOG || "$a" == WARN ]] && {
             echo
             echo -e "${YELLOW}expected${_not}${RST}${cmp_f:+ (from '$cmp_f')}:\n----------\n$(cat ${cmp_f:-<(echo "$cmp")})\n----------"
             echo -e "${YELLOW}got${RST}${exp_f:+ (from '$exp_f')}:\n----------\n$(cat ${exp_f:-<(echo "${exp:-}")})\n----------"
@@ -544,6 +625,8 @@ _run_tests() {
         _trap_main_exit() {
             local retval=$?
             \rm -f "$main_tmp_sh" "${main_tmp_sh}.log"
+            [[ -n "${BTS_CAPTURED_ERR:-}" ]] && \rm -f "$BTS_CAPTURED_ERR"
+            [[ -n "${BTS_CAPTURED_OUT:-}" ]] && \rm -f "$BTS_CAPTURED_OUT"
             exit $retval
         }
         trap '_trap_main_exit' EXIT
@@ -602,7 +685,7 @@ _run_tests() {
                 exec 8>&1
                 exec 9>&2
                 exec 1>>"$log_file"
-                exec 2>>"$log_file"
+                exec 2>>"$log_file_err"
 
                 echo "--- [$t] ----"
 
@@ -612,6 +695,8 @@ _run_tests() {
                 _trap_exit() {
                     local retval=$?
                     \rm -f "$tmp_sh"
+                    [[ -n "${BTS_CAPTURED_ERR:-}" ]] && \rm -f "$BTS_CAPTURED_ERR"
+                    [[ -n "${BTS_CAPTURED_OUT:-}" ]] && \rm -f "$BTS_CAPTURED_OUT"
                     exit $retval
                 }
                 trap '_trap_exit' EXIT
@@ -684,7 +769,7 @@ _run_tests() {
                 echo -en "[$n/${total}] ${BOLD}${WHITE}${ts}${RST}" >&8
                 if ((VERBOSE)); then
                     echo >&9
-                    $t > >(tee -a "$log_file" >&9) 2>&1; rr=$?
+                    $t 1> >(tee -a "$log_file" >&9) 2> >(tee -a "$log_file_err" >&9); rr=$?
                 else
                     $t; rr=$?
                 fi
@@ -698,7 +783,9 @@ _run_tests() {
                 exec 7>&-
                 exit $rr
             ); r=$?
-            grep -iq 'FATAL: command not found' "$log_file" && r=$r_cnf
+
+            ## check cnf
+            grep -iq 'FATAL: command not found' "$log_file" "$log_file_err" && r=$r_cnf
             ((r)) && prev_failed=1 || prev_failed=0
 
             _no_forced_log=0
@@ -719,11 +806,13 @@ _run_tests() {
                 ## FIXME: preset is not here anymore, refactor
                 $r_fatal|$r_fatal2) echo_c FATAL " [FATAL] Failed to execute $( ((r==r_fatal)) && echo 'preset' || echo 'setup')"
                     cat "$log_file"
+                    cat "$log_file_err"
                     break
                     #return $r_fatal
                     ;;
                 $r_cnf) echo_c FATAL " [FATAL] Command not found. Aborting."
                     cat "$log_file"
+                    cat "$log_file_err"
                     break
                     #return $r_fatal
                     ;;
@@ -735,8 +824,8 @@ _run_tests() {
                     ;;
             esac
             if ((!VERBOSE)); then
-                ((r==$r_warn || r==$r_fatal || r==$r_cnf || SHOW_OUTPUT)) && cat "$log_file" || {
-                    ((r && SHOW_FAILED && !_no_forced_log )) && cat "$log_file"
+                ((r==$r_warn || r==$r_fatal || r==$r_cnf || SHOW_OUTPUT)) && cat "$log_file" "$log_file_err" || {
+                    ((r && SHOW_FAILED && !_no_forced_log )) && cat "$log_file" "$log_file_err"
                 }
             fi
         done
