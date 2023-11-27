@@ -590,7 +590,14 @@ _run_in_docker() {
                 then
                     echo "Building image: '$cont_name' (from '$BTS_CONT')"
                     ## (re)build container if needed, execute within
-                    docker build --build-arg "UID=$UID" --build-arg "GID=$GID" -f "$BTS_CONT" -t "${cont_name}:latest" . 2>&1 || {
+                    docker build \
+                        --build-arg "http_proxy=${http_proxy:-${HTTP_PROXY:-}}" \
+                        --build-arg "https_proxy=${https_proxy:-${HTTPS_PROXY:-}}" \
+                        --build-arg "no_proxy=${no_proxy:-${NO_PROXY:-}}" \
+                        --build-arg "UID=$UID" \
+                        --build-arg "GID=$GID" \
+                        -f "$BTS_CONT" \
+                        -t "${cont_name}:latest" . 2>&1 || {
                         return 1
                     }
                 fi
