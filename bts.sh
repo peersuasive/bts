@@ -551,7 +551,7 @@ EOS
 }
 
 __wants_container() {
-    grep '^[[:space:]]*@bts_cont' "$1"
+    grep -q '^[[:space:]]*@bts_cont' "$1"
 }
 _run_in_docker() {
     local f="${1:?Missing test class}"
