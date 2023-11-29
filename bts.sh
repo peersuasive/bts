@@ -610,10 +610,11 @@ _run_in_docker() {
                 local rp_tests="${rp}/${TEST_DIR}"
 
                 # shellcheck disable=SC2068
-                ## -it => allow ctrl-c
+                ## -it => allow ctrl-c (disabled if CI environment is detected)
+                local with_tty=1
+                 [[ "${CI:-}" == "true" || "${NO_TTY:-}" == 1 ]] && unset with_tty
                 docker run --rm \
-                    -it \
-                    -e "http_proxy=${http_proxy:-${HTTP_PROXY:-}}" \
+                    ${with_tty:+-it} -e "http_proxy=${http_proxy:-${HTTP_PROXY:-}}" \
                     -e "https_proxy=${https_proxy:-${HTTPS_PROXY:-}}" \
                     -e "no_proxy=${no_proxy:-${NO_PROXY:-}}" \
                     -e WITHIN_CONT=1 \
