@@ -295,12 +295,14 @@ BTS_CAPTURED_OUT=
 }
 BTS_CONT=0
 BTS_CONT_NAME=
+BTS_CONT_CAN_SHARE=0
 WITHIN_CONT=${WITHIN_CONT:-0}
+SHARED_CONT=${SHARED_CONT:-0}
 @bts_cont() {
     local cont_state="${1:-}"
     local cont_name="${2:-}"
     if [[ "${cont_state,,}" == false || "$cont_state" == 0 ]]; then return 1; fi
-    [[ -f "$cont_state" ]] && BTS_CONT="$cont_state" || BTS_CONT="Dockerfile.bts"
+    [[ -f "$cont_state" ]] && BTS_CONT="$cont_state" || { BTS_CONT="Dockerfile.bts"; BTS_CONT_CAN_SHARE=1; }
     BTS_CONT_NAME="${cont_name:+bts/${cont_name#bts/}}"
     return 0
 }
@@ -567,28 +569,55 @@ __wants_container() {
     grep -q '^[[:space:]]*@bts_cont' "$1"
 }
 _run_in_docker() {
+    (( WITHIN_CONT )) && return 1
+
     local f="${1:?Missing test class}"
     local t="${2:-}"
     local sf="${f##*/}"
 
     ## execute in container if asked
-    (( WITHIN_CONT )) && return 1
     if cont_args=$(grep '^[[:space:]]*@bts_cont' "$f"); then
         if [[ "$cont_args" =~ ^[[:space:]]*@bts_cont[[:space:]]*(.*)$ ]]; then
             # shellcheck disable=SC2086
             if @bts_cont ${BASH_REMATCH[1]}; then
                 local GID="${GID:-$(id -g)}"
-                local cont_name="$BTS_CONT_NAME"
+                local bts_cont="${BTS_CONT:-}"
+                local cont_name="${BTS_CONT_NAME:-}"
+                local bts_cont_can_share="${BTS_CONT_CAN_SHARE:-0}"
+
+                ## reset to default values
+                BTS_CONT=0
+                BTS_CONT_NAME=
+                BTS_CONT_CAN_SHARE=0
+                
+                local cont_tag="latest"
                 if [[ -z "$cont_name" ]]; then
                     local cn="${sf%.*}"
-                    cont_name="bts/$guessed_project/${cn//:/_}"
+                    cont_name="bts/$guessed_project"
+                    cont_tag="${cn//:/_}"
+                    #if (( bts_cont_can_share )); then
+                    #    cont_name="bts/$guessed_project"
+                    #    cont_tag="${cn//:/_}"
+                    #else
+                    #    cont_name="bts/$guessed_project/${cn//:/_}"
+                    #    cont_tag="latest"
+                    #fi
                 fi
+
                 #echo "cont name: '$cont_name', sf: '$sf' => '${sf//:/_}' ('$f')"
-                local created_at
-                if ! created_at="$(docker inspect -f '{{ .Created }}' "${cont_name}:latest" 2>/dev/null)" \
+                local created_at cont_build_tag
+                (( bts_cont_can_share )) && {
+                    DBG "(will use shared image ${cont_name}:latest)"
+                    cont_build_tag='latest' 
+                } || cont_build_tag="$cont_tag"
+                local was_rebuilt=0
+                ## rebuild main image
+                if ! created_at="$(docker inspect --type=image -f '{{ .Created }}' "${cont_name}:${cont_build_tag}" 2>/dev/null)" \
                     || (( $(date --date "$(stat -c '%y' Dockerfile.bts)" +"%s") > $(date --date "$created_at" +"%s") ))
                 then
-                    echo "Building image: '$cont_name' (from '$BTS_CONT')"
+                    was_rebuilt=1
+                    ## create a tag instead of rebuilding image for tests sharing the same Dockerfile (problem: how to find out this is the same Dockerfile?...)
+                    echo "Building image: '${cont_name}:${cont_build_tag}' (from '$bts_cont')"
                     ## some discrepency between existing container and wanted one, probably coming from a more recent -- force rebuild
                     [[ -n "$created_at" ]] && no_cache=1
                     ## (re)build container if needed, execute within
@@ -598,11 +627,19 @@ _run_in_docker() {
                         --build-arg "no_proxy=${no_proxy:-${NO_PROXY:-}}" \
                         --build-arg "UID=$UID" \
                         --build-arg "GID=$GID" \
-                        -f "$BTS_CONT" \
-                        -t "${cont_name}:latest" . 2>&1 || {
+                        -f "$bts_cont" \
+                        -t "${cont_name}:${cont_build_tag}" . 2>&1 || {
                         return 1
                     }
                 fi
+                ## update tag if shared image
+                if ((bts_cont_can_share)); then
+                    if (( was_rebuilt )) || ! docker inspect --type=image "${cont_name}:${cont_tag}" 1>/dev/null 2>/dev/null; then
+                        docker rmi "${cont_name}:${cont_tag}" 1>/dev/null 2>/dev/null || true
+                        docker tag "${cont_name}:latest" "${cont_name}:${cont_tag}"
+                    fi
+                fi
+
                 # shellcheck disable=SC2016
                 DBG "Starting test '$f' within container ${ORIG_ARGS:+(with options: '${ORIG_ARGS[*]})'}"
                 ## restart within container
@@ -618,11 +655,12 @@ _run_in_docker() {
                     -e "https_proxy=${https_proxy:-${HTTPS_PROXY:-}}" \
                     -e "no_proxy=${no_proxy:-${NO_PROXY:-}}" \
                     -e WITHIN_CONT=1 \
+                    -e SHARED_CONT="${bts_cont_can_share:-0}" \
                     -v "$rp":"$rp" \
                     -v "$rp_tests":"$rp_tests":ro \
                     -w "$rp" \
                     -u "${UID}:$(id -g)" \
-                    "$cont_name" ./bts/bts.sh ${ORIG_ARGS[@]} "$f${t:+:$t}"
+                    "${cont_name}:${cont_tag}" ./bts/bts.sh ${ORIG_ARGS[@]} "$f${t:+:$t}"
                 return $?
             fi
         fi
