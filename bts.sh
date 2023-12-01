@@ -681,6 +681,7 @@ _run_tests() {
     local reset="${tests_ext[reset]:-}"
 
     total=${#l_tests[@]}; local s=""; ((total>1)) && s='s'
+    pad_l=${#total}
 
     ((!total)) && echo "No test found" && return $r_ok
     echo "Executing $total test$s"
@@ -837,7 +838,7 @@ _run_tests() {
 
                 [[ -n "$setup" ]] && { $setup || exit $r_fatal2; }
 
-                echo -en "[$n/${total}] ${BOLD}${WHITE}${ts}${RST}" >&8
+                echo -en "[${nn}/${total}] ${BOLD}${WHITE}${ts}${RST}" >&8
                 if ((VERBOSE)); then
                     echo >&9
                     $t 1> >(tee -a "$log_file" >&9) 2> >(tee -a "$log_file_err" >&9); rr=$?
@@ -907,7 +908,7 @@ _run_tests() {
         }
 
         echo
-        echo -e "-> [$((total-failed))/$total] ($failed failure$(((failed>1)) && echo s)$(((unimplemented)) && echo ", $unimplemented being unimplemented test$(((unimplemented>1))&& echo s)"))"
+        echo -e "-> [$((total-failed))/$total] ($( ((failed)) && echo -ne "$RED" )$failed failure$(((failed>1)) && echo s)$(((unimplemented)) && echo ", $unimplemented being unimplemented test$(((unimplemented>1))&& echo s)"))"
         ((failed)) && exit 1 || exit 0
     )
 }
@@ -936,6 +937,8 @@ run() {
         [[ " $tests_to_ignore " =~ \ ${f##*/}\  ]] && continue
         tests_to_run+=( "$f" )
     done
+
+    local failed=0
     for f in ${tests_to_run[@]}; do
         local ff="$f"
         local t=''
@@ -951,7 +954,7 @@ run() {
         ((LIST_ONLY)) && {
             local i=0
             echo -e "${INV}Test class ${BOLD}${CYAN}$f${RST}"
-            for k in ${!tests_i[@]}; do
+            for k in "${!tests_i[@]}"; do
                 local kk="$k"
                 #local kk=${k//__/: }; kk=${kk//_/ }
                 int_tests+=( "$k" )
@@ -960,25 +963,93 @@ run() {
             continue
         }
 
-        local total=0
-        local failed=0
+        #local total=0
+        #local failed=0
         local fr=${ff##*/}
-        local in_cont=
         results="$results_base/${fr%.*}"; mkdir -p "$results"
         if (( ! WITHIN_CONT )) && __wants_container "$ff"; then
             DBG "(running ${BOLD}${CYAN}$fr${RST} in ${INV}container${RST})"
             _run_in_docker "$ff" "$t"
         else
-            ((WITHIN_CONT)) && in_cont=1
-            echo -e "${INV}Running test class ${BOLD}${CYAN}$fr${RST}${in_cont:+ ${BLUEB}[in container]${RST}}"
+            local in_cont shared_cont
+            ((WITHIN_CONT)) && in_cont=1 && (( SHARED_CONT )) && shared_cont=1
+            echo -e "${INV}Running test class ${BOLD}${CYAN}$fr${RST}${in_cont:+ ${BLUEB}[in ${shared_cont:+"(shared) "}container]${RST}}"
             _run_tests "$ff" "$t"
         fi
         local r=$?
-        (( r )) && state=1
+        (( r )) && state=1 && ((++failed))
         (( r == r_fatal )) && break
-        #echo
-        #echo -e "-> [$((total-failed))/$total] ($failed failure$(((failed>1)) && echo s)$(((unimplemented)) && echo ", $unimplemented being unimplemented test$(((unimplemented>1))&& echo s)"))"
     done
+    
+    ## display total if many classes were run
+    if ((!WITHIN_CONT && ${#tests_to_run[@]} > 1)); then
+        ## total number of classes run
+        local total=${#tests_to_run[@]}
+        ## box width
+        local box_width=34
+
+        ## some glyphs...
+        local sep_t='─'
+        local sep_b='─'
+        local sep_r='│'
+        local sep_l='│'
+        local sep_r_t='┌'
+        local sep_l_t='┐'
+        local sep_r_b='└'
+        local sep_l_b='┘'
+
+        # compute and display message, either with centered text or to add left padding
+        function print_pad {
+            local pre_pad_length=0
+            local no_center=0
+            local get_pad=0
+            local msg=""
+            while (($#)); do
+                case "$1" in
+                    -p) pre_pad_length="$2"; shift;;
+                    -n) no_center=1;;
+                    -g) get_pad=1;;
+                    *) msg="$1";;
+                esac
+                shift
+            done
+            ## get msg without colours, to get its real length
+            local raw_msg; raw_msg="$( echo "$msg" | sed -re 's/\\033\[[0-9;]+m//g' )"
+
+            local pad_max=$(( box_width - ${#raw_msg} ))
+            local pad_r_length pad_l_length
+            if ((no_center)); then
+                pad_l_length=$pre_pad_length
+                pad_r_length=$(( pad_max - pre_pad_length ))
+            else
+                pad_l_length=$(( pad_max / 2 ))
+                pad_r_length=$(( pad_l_length + ( pad_max - pad_l_length * 2 ) ))
+            fi
+            local pad_l pad_r
+            pad_l=$( for ((i=0;i<pad_l_length;++i)); do echo -n ' '; done )
+            pad_r=$( for ((i=0;i<pad_r_length;++i)); do echo -n ' '; done )
+            echo -e "${pad_l}${msg}${pad_r}"
+            if ((get_pad)); then
+                echo "$pad_l_length"
+                echo "$pad_r_length"
+            fi
+        }
+
+        local header_msg="${INV} Global Results ${RST}"
+ 
+        echo
+        echo -e "${sep_r_t}$( for ((i=0;i<box_width;++i)); do echo -n "${sep_t}"; done )${sep_l_t}"
+
+        local IFS=$'\n'
+        # shellcheck disable=SC2207
+        local h=( $(print_pad -g "$header_msg") )
+        echo -e "${sep_l}${h[0]}${sep_r}"
+        echo -e "${sep_l}$(print_pad "")${sep_r}"
+        echo -e "${sep_l}$(print_pad -n -p "${h[1]}" "-> [$((total-failed))/$total] ($( ((failed)) && echo -ne "${INV}${RED}")$failed failure$( ((failed>1)) && echo s)${RST})")${sep_r}"
+
+        echo -e "${sep_r_b}$( for ((i=0;i<box_width;++i)); do echo -n "${sep_b}"; done )${sep_l_b}"
+    fi
+
     return $state
 }
 
