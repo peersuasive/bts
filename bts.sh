@@ -1153,11 +1153,13 @@ run() {
         ## box's title
         local header_msg="${INV} Global Results ${RST}"
         local border_style
+        local d_pad=${#total}
+        local total_success; total_success="$( printf "%${d_pad}d" "$(( total - failed ))" )"
         ((failed)) && border_style='-e'
         __box_up \
             ${border_style:---rounded} \
             -t "$header_msg" \
-            "-> [$((total-failed))/$total] ($( ((failed)) && echo -ne "${INV}${RED}")$failed failure$( ((failed>1)) && echo -n 's')${RST})"
+            "-> [$total_success/$total] ($( ((failed)) && echo -ne "${INV}${RED}")$failed failure$( ((failed>1)) && echo -n 's')${RST})"
 
     fi
 
