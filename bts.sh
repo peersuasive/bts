@@ -668,6 +668,166 @@ _run_in_docker() {
     return 1
 }
 
+typeset -x BOX_WIDTH=36
+function __box_up {
+    local title=""
+    local colour=""
+    local box_msg=()
+    local box_width=${BOX_WIDTH:-35}
+    local rounded=0
+    local squared=0
+    local thick=0
+    _set_border() {
+        case "$1" in
+            rounded) rounded=1; thick=0; squared=0;;
+            squared) rounded=0; thick=0; squared=1;;
+            thick) rounded=0; thick=1; squared=0;;
+            *) rounded=1; thick=0; squared=0;;
+        esac
+    }
+    while (($#)); do
+        case "$1" in
+            -t) title="$2"; shift;;
+            -c) colour="$2"; shift;;
+            -w) box_width="$2"; shift;;
+            --border) _set_border "$2"; shift;;
+            --rounded) _set_border "rounded";;
+            --squared) _set_border "squared";;
+            --thick) _set_border "thick";;
+            -e|--error) _set_border "thick"; colour="${colour:-$RED}";;
+            *) box_msg+=( "$1" );;
+        esac
+        shift
+    done
+    
+    ## default border style
+    ! (( rounded || squared || thick )) && rounded=1
+
+    local sep_t sep_b sep_r sep_l sep_l_t sep_l_b sep_r_t sep_r_b
+    ## some glyphs...
+    if (( squared )); then
+        sep_t='─'
+        sep_b='─'
+        sep_r='│'
+        sep_l='│'
+        sep_l_t='┌'
+        sep_r_t='┐'
+        sep_l_b='└'
+        sep_r_b='┘'
+    elif (( rounded )); then
+        sep_t='─'
+        sep_b='─'
+        sep_r='│'
+        sep_l='│'
+        sep_l_t='╭'
+        sep_r_t='╮'
+        sep_l_b='╰'
+        sep_r_b='╯'
+    elif ((thick)); then
+        sep_t='━'
+        sep_b='━'
+        sep_r='┃'
+        sep_l='┃'
+        sep_r_t='┓'
+        sep_l_t='┏'
+        sep_r_b='┛'
+        sep_l_b='┗'
+    fi
+
+    # discard special codes from string
+    function get_raw_string {
+        local s="${1:-}"
+        [[ -z "$s" ]] && return 0
+        echo -ne "$s" | sed -r "s/(\\033|\x1B)\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]//g"
+    }
+
+    # compute and display message, either with centered text or to add left padding
+    function print_pad {
+        local pre_pad_length=0
+        local no_center=0
+        local get_pad=0
+        local msg=""
+        while (($#)); do
+            case "$1" in
+                -p) pre_pad_length="$2"; shift;;
+                -n) no_center=1;;
+                -g) get_pad=1;;
+                *) msg="$1";;
+            esac
+            shift
+        done
+        ## get msg without colours, to get its real length
+        local raw_msg; raw_msg="$( get_raw_string "$msg" )"
+
+        local pad_max=$(( box_width - ${#raw_msg} ))
+        (( pad_max < 0 )) && pad_max=0
+        local pad_r_length pad_l_length
+        if ((no_center)); then
+            pad_l_length=$pre_pad_length
+            pad_r_length=$(( pad_max - pre_pad_length ))
+            (( pad_r_length < 0 )) && pad_r_length=0
+        else
+            pad_l_length=$(( pad_max / 2 ))
+            local pad_int=$(( pad_max - pad_l_length * 2))
+            (( pad_int < 0 )) && pad_int=0
+            pad_r_length=$(( pad_l_length + pad_int ))
+        fi
+        local pad_l pad_r
+        pad_l=$( for ((i=0;i<pad_l_length;++i)); do echo -n ' '; done )
+        pad_r=$( for ((i=0;i<pad_r_length;++i)); do echo -n ' '; done )
+        echo -e "${pad_l}${msg}${pad_r}"
+        if ((get_pad)); then
+            echo "$pad_l_length"
+            echo "$pad_r_length"
+        fi
+    }
+    ## compute pre pad
+    local h=()
+    while IFS=$'\n' read -r l; do
+        h+=( "$l" )
+    done <<<"$(print_pad -g "$title")"
+    local pre_pad="${h[1]}"
+
+    ## check title length, increase box width if too long
+    local _raw_l; _raw_l="$( get_raw_string "$title" )"
+    if (( ( pre_pad + ${#_raw_l}) > box_width )); then
+        box_width=$(( pre_pad + ${#_raw_l} + 2))
+    fi
+    if (( box_width != BOX_WIDTH )); then
+        ## recompute pre_pad
+        h=()
+        while IFS=$'\n' read -r l; do
+            h+=( "$l" )
+        done <<<"$(print_pad -g "$title")"
+        pre_pad="${h[1]}"
+    fi
+
+    ## check lines length
+    for l in "${box_msg[@]}"; do
+        local _raw_l; _raw_l="$( get_raw_string "$l" )"
+        if (( ( pre_pad + ${#_raw_l}) > box_width )); then
+            box_width=$(( pre_pad + ${#_raw_l} + 1 ))
+        fi
+    done
+    ## top line
+    echo -e "${colour}${sep_l_t}$( for ((i=0;i<box_width;++i)); do echo -n "${sep_t}"; done )${sep_r_t}${RST}"
+
+    ## title
+    # shellcheck disable=SC2207
+    if [[ -n "$title" ]]; then
+        echo -e "${colour}${sep_l}${RST}$(print_pad -n -p "$pre_pad" "${title}")${colour}${sep_r}${RST}"
+        echo -e "${colour}${sep_l}${RST}$(print_pad -n -p "$pre_pad" "")${colour}${sep_r}${RST}"
+    fi
+
+    ## message
+    for l in "${box_msg[@]}"; do
+        echo -e "${colour}${sep_l}${RST}$(print_pad -n -p "$pre_pad" "${l}")${colour}${sep_r}${RST}"
+    done
+
+    ## bottom line
+    echo -e "${colour}${sep_l_b}$( for ((i=0;i<box_width;++i)); do echo -n "${sep_b}"; done )${sep_r_b}${RST}"
+}
+
 _run_tests() {
     local prev_failed=0
     local f="${1:?Missing test class}"
@@ -983,71 +1143,20 @@ run() {
     
     ## display total if many classes were run
     if ((!WITHIN_CONT && ${#tests_to_run[@]} > 1)); then
+        ## just a bit of space
+        echo
+
         ## total number of classes run
         local total=${#tests_to_run[@]}
-        ## box width
-        local box_width=34
-
-        ## some glyphs...
-        local sep_t='─'
-        local sep_b='─'
-        local sep_r='│'
-        local sep_l='│'
-        local sep_r_t='┌'
-        local sep_l_t='┐'
-        local sep_r_b='└'
-        local sep_l_b='┘'
-
-        # compute and display message, either with centered text or to add left padding
-        function print_pad {
-            local pre_pad_length=0
-            local no_center=0
-            local get_pad=0
-            local msg=""
-            while (($#)); do
-                case "$1" in
-                    -p) pre_pad_length="$2"; shift;;
-                    -n) no_center=1;;
-                    -g) get_pad=1;;
-                    *) msg="$1";;
-                esac
-                shift
-            done
-            ## get msg without colours, to get its real length
-            local raw_msg; raw_msg="$( echo "$msg" | sed -re 's/\\033\[[0-9;]+m//g' )"
-
-            local pad_max=$(( box_width - ${#raw_msg} ))
-            local pad_r_length pad_l_length
-            if ((no_center)); then
-                pad_l_length=$pre_pad_length
-                pad_r_length=$(( pad_max - pre_pad_length ))
-            else
-                pad_l_length=$(( pad_max / 2 ))
-                pad_r_length=$(( pad_l_length + ( pad_max - pad_l_length * 2 ) ))
-            fi
-            local pad_l pad_r
-            pad_l=$( for ((i=0;i<pad_l_length;++i)); do echo -n ' '; done )
-            pad_r=$( for ((i=0;i<pad_r_length;++i)); do echo -n ' '; done )
-            echo -e "${pad_l}${msg}${pad_r}"
-            if ((get_pad)); then
-                echo "$pad_l_length"
-                echo "$pad_r_length"
-            fi
-        }
-
+        ## box's title
         local header_msg="${INV} Global Results ${RST}"
- 
-        echo
-        echo -e "${sep_r_t}$( for ((i=0;i<box_width;++i)); do echo -n "${sep_t}"; done )${sep_l_t}"
+        local border_style
+        ((failed)) && border_style='-e'
+        __box_up \
+            ${border_style:---rounded} \
+            -t "$header_msg" \
+            "-> [$((total-failed))/$total] ($( ((failed)) && echo -ne "${INV}${RED}")$failed failure$( ((failed>1)) && echo -n 's')${RST})"
 
-        local IFS=$'\n'
-        # shellcheck disable=SC2207
-        local h=( $(print_pad -g "$header_msg") )
-        echo -e "${sep_l}${h[0]}${sep_r}"
-        echo -e "${sep_l}$(print_pad "")${sep_r}"
-        echo -e "${sep_l}$(print_pad -n -p "${h[1]}" "-> [$((total-failed))/$total] ($( ((failed)) && echo -ne "${INV}${RED}")$failed failure$( ((failed>1)) && echo s)${RST})")${sep_r}"
-
-        echo -e "${sep_r_b}$( for ((i=0;i<box_width;++i)); do echo -n "${sep_b}"; done )${sep_l_b}"
     fi
 
     return $state
