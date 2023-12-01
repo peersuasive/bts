@@ -905,6 +905,7 @@ _run_tests() {
 
         r=0
         ## execute tests
+        local d_pad=${#total}
         # shellcheck disable=SC2068
         for t in ${l_tests[@]}; do
             ((++_cur >= _end)) && _is_last=1
@@ -998,7 +999,8 @@ _run_tests() {
 
                 [[ -n "$setup" ]] && { $setup || exit $r_fatal2; }
 
-                echo -en "[${nn}/${total}] ${BOLD}${WHITE}${ts}${RST}" >&8
+                local _nn; _nn="$( printf "%${d_pad}d" "$n" )"
+                echo -en "[${_nn}/${total}] ${BOLD}${WHITE}${ts}${RST}" >&8
                 if ((VERBOSE)); then
                     echo >&9
                     $t 1> >(tee -a "$log_file" >&9) 2> >(tee -a "$log_file_err" >&9); rr=$?
