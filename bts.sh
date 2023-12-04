@@ -135,6 +135,7 @@ OK=OK
 FAILED=FAILED
 FATAL=FATAL
 TODO=TODO
+INTERRUPTED=INTERRUPTED
 MSG_STATUS=
 QUIET=
 SHOW_OUTPUT=
@@ -150,7 +151,8 @@ r_fatal2=5
 r_warn=3
 r_todo=4
 r_cnf=6
-exp_vars+=( r_ok r_fail r_fatal r_warn r_todo )
+r_break=9
+exp_vars+=( r_ok r_fail r_fatal r_warn r_todo r_break )
 
 echo_c() {
     local s=$1; shift
@@ -861,8 +863,11 @@ _run_tests() {
             exit $retval
         }
         trap '_trap_main_exit' EXIT
-        trap '_trap_main_exit' SIGINT
-        trap '_trap_main_exit' SIGTERM
+        _trap_main_break() {
+            exit $r_break
+        }
+        trap '_trap_main_break' SIGINT
+        trap '_trap_main_break' SIGTERM
 
         failed=0
         unimplemented=0
@@ -933,9 +938,11 @@ _run_tests() {
                     exit $retval
                 }
                 trap '_trap_exit' EXIT
-                trap '_trap_exit' SIGINT
-                trap '_trap_exit' SIGTERM
-                trap '_trap_exit' KILL
+                _trap_break() {
+                    exit $r_break
+                }
+                trap '_trap_break' SIGINT
+                trap '_trap_break' SIGTERM
 
                 _trap_err() {
                     local retval=$?
@@ -1024,6 +1031,10 @@ _run_tests() {
 
             _no_forced_log=0
             case $r in
+                $r_break) echo_c INTERRUPTED " -> [$INTERRUPTED]"
+                    _no_forced_log=1;
+                    exit $r_break
+                    ;;
                 $r_ok) echo_c OK " -> [$OK]"
                     ;;
 
@@ -1078,6 +1089,11 @@ _run_tests() {
 ## ----- main
 
 run() {
+    _run_break() {
+        exit $r_break
+    }
+    trap '_run_break' SIGINT
+    trap '_run_break' SIGTERM
     local f
     \rm -rf "$results_base"
     mkdir -p "$results_base"
