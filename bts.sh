@@ -261,7 +261,7 @@ exp_cmds_pre+=( fail ok fatal todo dbg trace ltrace )
 
 @todo() {
     echo "unimplemented: ${FUNCNAME[1]}"
-    return 1
+    return $r_todo
 }
 
 
@@ -985,7 +985,7 @@ _run_tests() {
                     exec 2>&9
                     exec 7>&-
 
-                    return $retval
+                    exit $retval
                 }
                 trap '_trap_err' ERR
                 
@@ -1031,7 +1031,7 @@ _run_tests() {
 
             _no_forced_log=0
             case $r in
-                $r_break) echo_c INTERRUPTED " -> [$INTERRUPTED]"
+                $r_break) echo_c FATAL " -> [$INTERRUPTED]"
                     _no_forced_log=1;
                     exit $r_break
                     ;;
