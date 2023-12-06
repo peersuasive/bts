@@ -300,11 +300,13 @@ BTS_CONT_NAME=
 BTS_CONT_CAN_SHARE=0
 WITHIN_CONT=${WITHIN_CONT:-0}
 SHARED_CONT=${SHARED_CONT:-0}
+## @bts_cont [enabled:1 (default)|disabled:0|Dockerfile to use (defaults: Dockerfile.bts)] [container_name]
 @bts_cont() {
     local cont_state="${1:-}"
     local cont_name="${2:-}"
     if [[ "${cont_state,,}" == false || "$cont_state" == 0 ]]; then return 1; fi
-    [[ -f "$cont_state" ]] && BTS_CONT="$cont_state" || { BTS_CONT="Dockerfile.bts"; BTS_CONT_CAN_SHARE=1; }
+    [[ -f "$cont_state" ]] && BTS_CONT="$cont_state" || BTS_CONT="Dockerfile.bts"
+    [[ "$BTS_CONT" == "Dockerfile.bts" && -z "$cont_name" ]] && BTS_CONT_CAN_SHARE=1
     BTS_CONT_NAME="${cont_name:+bts/${cont_name#bts/}}"
     return 0
 }
