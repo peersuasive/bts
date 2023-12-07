@@ -596,7 +596,7 @@ _run_in_docker() {
                 
                 local cont_tag="latest"
                 if [[ -z "$cont_name" ]]; then
-                    local cn="${sf%.*}", cn="${cn,,}"
+                    local cn="${sf%.*}"; cn="${cn,,}"
                     cont_name="bts/${guessed_project,,}"
                     cont_tag="${cn//:/_}"
                     #if (( bts_cont_can_share )); then
