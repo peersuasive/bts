@@ -675,6 +675,7 @@ _run_in_docker() {
                     ${with_tty:+-it} -e "http_proxy=${http_proxy:-${HTTP_PROXY:-}}" \
                     -e "https_proxy=${https_proxy:-${HTTPS_PROXY:-}}" \
                     -e "no_proxy=${no_proxy:-${NO_PROXY:-}}" \
+                    -e TZ="$(cat /etc/timezone 2>/dev/null||echo 'Europe/Paris')" \
                     -e WITHIN_CONT=1 \
                     -e SHARED_CONT="${bts_cont_can_share:-0}" \
                     -v "$rp":"$rp" \
