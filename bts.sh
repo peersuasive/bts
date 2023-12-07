@@ -22,6 +22,7 @@ typeset -r bts_cmd
 ORIG_ARGS=()
 DEBUG=${DEBUG:-0}
 DEBUG_BTS=${DEBUG_BTS:-0}
+FIRST_FAIL=0
 
 ## try to use bash's 4.4+ Parameters Transformations to keep empty arguments by quoting them
 bts_bash_tr=0
@@ -51,6 +52,7 @@ Options:
     -l|--list|--list-tests  list available test without executing
     -t|--tests-dir <dir>    look for tests in 'dir' instead of 'tests'
     -r|--project-root <dir> project's base root (default: .)
+    -f|--first-fail         break at first fail
     -D|--DEBUG              debug BTS
     -dd|--extra-debug       enable extra dbg traces (typically, turns 'set -x' on)
     -d|--debug              enable dbg traces
@@ -587,6 +589,8 @@ EOS
 __wants_container() {
     grep -q '^[[:space:]]*@bts_cont' "$1"
 }
+
+## FIXME each individual test should run in their own container!!!
 _run_in_docker() {
     (( WITHIN_CONT )) && return 1
 
@@ -1093,6 +1097,7 @@ _run_tests() {
                     ((r && SHOW_FAILED && !_no_forced_log )) && cat "$log_file" "$log_file_err"
                 }
             fi
+            (( r && r != r_todo && FIRST_FAIL )) && break
         done
 
         ## reset, if found
@@ -1101,6 +1106,7 @@ _run_tests() {
         }
 
         echo
+        (( failed && FIRST_FAIL )) && exit 1
         echo -e "-> [$((total-failed))/$total] ($( ((failed)) && echo -ne "$RED" )$failed failure$(((failed>1)) && echo s)$(((unimplemented)) && echo ", $unimplemented being unimplemented test$(((unimplemented>1))&& echo s)"))"
         ((failed)) && exit 1 || exit 0
     )
@@ -1176,7 +1182,7 @@ run() {
         fi
         local r=$?
         (( r )) && state=1 && ((++failed))
-        (( r == r_fatal )) && break
+        (( r == r_fatal || (r && FIRST_FAIL) )) && break
     done
     
     ## display total if many classes were run
@@ -1219,6 +1225,7 @@ while (($#)); do
         -l|--list|--list-tests) LIST_ONLY=1;;
         -t|--tests-dir) TEST_DIR="$2"; shift;;
         -r|--project-root) PROJECT_ROOT="$2"; shift;;
+        -f|--first-fail) FIRST_FAIL=1;;
         #-i|--interactive) LIST_ONLY=1; INTERACTIVE=1;;
         *) ARGS+=( "$1" )
             shift
