@@ -4,6 +4,15 @@
 set -o pipefail
 set -u
 
+## keep relative, because readlink would resolve with an unreachable path if bts.sh is a symlink
+typeset bts_cmd
+if [[ "${0:0:1}" == "/" ]]; then
+    bts_cmd="$0"
+else
+    bts_cmd="${PWD}/$0"
+fi
+typeset -r bts_cmd
+
 ORIG_ARGS=()
 DEBUG=${DEBUG:-0}
 DEBUG_BTS=${DEBUG_BTS:-0}
@@ -631,6 +640,7 @@ _run_in_docker() {
                         --build-arg "no_proxy=${no_proxy:-${NO_PROXY:-}}" \
                         --build-arg "UID=$UID" \
                         --build-arg "GID=$GID" \
+                        --build-arg TZ="$(cat /etc/timezone 2>/dev/null||echo 'Europe/Paris')" \
                         -f "$bts_cont" \
                         -t "${cont_name}:${cont_build_tag}" . 2>&1 || {
                         return 1
@@ -647,13 +657,14 @@ _run_in_docker() {
                 # shellcheck disable=SC2016
                 DBG "Starting test '$f' within container ${ORIG_ARGS:+(with options: '${ORIG_ARGS[*]})'}"
                 ## restart within container
-                local rp=$(readlink -f "$PWD")
+                local rp; rp=$(readlink -f "$PWD")
                 local rp_tests="${rp}/${TEST_DIR}"
 
                 # shellcheck disable=SC2068
                 ## -it => allow ctrl-c (disabled if CI environment is detected)
                 local with_tty=1
-                 [[ "${CI:-}" == "true" || "${NO_TTY:-}" == 1 ]] && unset with_tty
+                [[ "${CI:-}" == "true" || "${NO_TTY:-}" == 1 ]] && unset with_tty
+
                 docker run --rm \
                     ${with_tty:+-it} -e "http_proxy=${http_proxy:-${HTTP_PROXY:-}}" \
                     -e "https_proxy=${https_proxy:-${HTTPS_PROXY:-}}" \
@@ -664,7 +675,7 @@ _run_in_docker() {
                     -v "$rp_tests":"$rp_tests":ro \
                     -w "$rp" \
                     -u "${UID}:$(id -g)" \
-                    "${cont_name}:${cont_tag}" ./bts/bts.sh ${ORIG_ARGS[@]} "$f${t:+:$t}"
+                    "${cont_name}:${cont_tag}" "$bts_cmd" ${ORIG_ARGS[@]} "$f${t:+:$t}"
                 return $?
             fi
         fi
