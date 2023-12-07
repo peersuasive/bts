@@ -5,11 +5,17 @@ set -o pipefail
 set -u
 
 ## keep relative, because readlink would resolve with an unreachable path if bts.sh is a symlink
+# well relative whould work very well either, would it? so, we don't care.
 typeset bts_cmd
-if [[ "${0:0:1}" == "/" ]]; then
-    bts_cmd="$0"
+if command -v realpath 1>/dev/null 2>/dev/null; then
+    bts_cmd="$(realpath -s "$0")"
 else
-    bts_cmd="${PWD}/$0"
+    typeset _tmp_path; _tmp_path="$(dirname "$0")"
+    if [[ "${_tmp_path:0:1}" != "/" ]]; then
+        _tmp_path="${PWD}/${_tmp_path}"
+    fi
+    bts_cmd="$( readlink -f "$_tmp_path" )/$(basename "$0")"
+    unset _tmp_path
 fi
 typeset -r bts_cmd
 
