@@ -357,7 +357,8 @@ BTS_CONT_CAN_SHARE=0
 WITHIN_CONT=${WITHIN_CONT:-0}
 WITHIN_CONT_NAME="${WITHIN_CONT_NAME:-}"
 WITHIN_CONT_TAG="${WITHIN_CONT_TAG:-}"
-SHARED_CONT=${SHARED_CONT:-0}
+#SHARED_CONT=${SHARED_CONT:-0}
+__BTS_CONT_DISABLED=0
 ### load all tests together within a container
 ## @bts_cont [enabled:1 (default)|disabled:0|Dockerfile to use (defaults: Dockerfile.bts)] [container_name]
 # returns
@@ -365,9 +366,16 @@ SHARED_CONT=${SHARED_CONT:-0}
 # BTS_CONT_NAME: name of the container to use (defaults: empty)
 # BTS_CONT_CAN_SHARE: if BTS_CONT is equal to Dockerfile.bts, set to 1 (default: 0)
 @bts_cont() {
+    ## reset
+    BTS_CONT=0
+    BTS_CONT_NAME=""
+    BTS_CONT_CAN_SHARE=0
+    __BTS_CONT_DISABLED=0
+    BTS_UNIT_CONT=0
+
     local cont_state="${1:-}"
     local cont_name="${2:-}"; cont_name="${cont_name,,}"
-    if [[ "${cont_state,,}" == false || "$cont_state" == 0 ]]; then return 1; fi
+    if [[ "${cont_state,,}" == false || "$cont_state" == 0 ]]; then __BTS_CONT_DISABLED=1; return 0; fi
     [[ -f "$cont_state" ]] && BTS_CONT="$cont_state" || BTS_CONT="Dockerfile.bts"
     [[ "$BTS_CONT" == "Dockerfile.bts" && -z "$cont_name" ]] && BTS_CONT_CAN_SHARE=1
     BTS_CONT_NAME="${cont_name:+bts/${cont_name#bts/}}"
@@ -377,10 +385,23 @@ WITHIN_UNIT_CONT=${WITHIN_UNIT_CONT:-0}
 BTS_UNIT_CONT=0
 ### load each test into its own container
 @bts_unit_cont() {
+    ## reset
+    BTS_CONT=0
+    BTS_CONT_NAME=""
+    BTS_CONT_CAN_SHARE=0
+    __BTS_CONT_DISABLED=0
+    BTS_UNIT_CONT=0
+
     local cont_state="${1:-}"
     local cont_name="${2:-}"; cont_name="${cont_name,,}"
-    if [[ "${cont_state,,}" == false || "$cont_state" == 0 ]]; then return 1; fi
-    [[ -f "$cont_state" ]] && BTS_CONT="$cont_state" || BTS_CONT="Dockerfile.bts"
+    if [[ "${cont_state,,}" == false || "$cont_state" == 0 ]]; then __BTS_CONT_DISABLED=1; return 0; fi
+    if [[ "${cont_state,,}" == true || "$cont_state" == 1 ]]; then cont_state=""; fi
+    if [[ -z "${cont_state:-}" ]]; then
+        BTS_CONT="Dockerfile.bts"
+    else
+        BTS_CONT="$cont_state"
+    fi
+    ! [[ -f "$BTS_CONT" ]] && echo "${FUNCNAME[*]}: Can't find dockerfile: '$BTS_CONT'" >&2 && exit $r_fatal
     [[ "$BTS_CONT" == "Dockerfile.bts" && -z "$cont_name" ]] && BTS_CONT_CAN_SHARE=1
     BTS_CONT_NAME="${cont_name:+bts/${cont_name#bts/}}"
     BTS_UNIT_CONT=1
@@ -389,10 +410,7 @@ BTS_UNIT_CONT=0
 exp_utils+=( @load @bts_cont @bts_unit_cont @escape_parameters )
 
 __wants_container() {
-    grep -q '^[[:space:]]*@bts_cont' "$1"
-}
-__wants_unit_container() {
-    grep -q '^[[:space:]]*@bts_unit_cont' "$1"
+    grep -qP '^[[:space:]]*@bts_(unit_)?cont[[:space:]]*(?:(?!0|false).)*$' "$1"
 }
 
 export_cmds() {
@@ -627,7 +645,9 @@ _get_class_tests() {
     ## evaluate script first
     ## implementation note: got rid of this, as script below will source it also an would fail equally, which is far enough
     # shellcheck disable=SC1090
-    ( source "$test_class" 1>/dev/null ) || { echo "Failed to pre-load class '$test_class'!"; return 1; }
+    local r=0
+    ( source "$test_class" 1>/dev/null ) || r=$?
+    ((r)) && { echo "Failed to pre-load class '$test_class'!"; return 1; }
 
     ## run in a new shell to start with a clean environment, devoid of any foreign functions
     local xxx; xxx=$(cat <<EOS|bash
@@ -865,8 +885,6 @@ _build_test_image() {
     local test_name="$2"
     local cont_name="$WITHIN_CONT_NAME"
     local cont_file="${WITHIN_CONT_FILE:-Dockerfile.bts}"
-
-    echo "cont_name: '$cont_name'"
 
     local cont_shared=0
     [[ "$cont_file" == "Dockerfile.bts" ]] && cont_shared=1
@@ -1502,7 +1520,8 @@ _run_class_in_container() {
     if cont_args="$(grep -Em1 '^[[:space:]]*@bts_(unit_)?cont($|[[:space:]]+.*$)' "$test_class")"; then
         if [[ "$cont_args" =~ ^[[:space:]]*(@bts_(unit_)?cont)[[:space:]]*(.*)$ ]]; then
             # shellcheck disable=SC2086
-            if ${BASH_REMATCH[1]} ${BASH_REMATCH[3]}; then
+            if ${BASH_REMATCH[1]} ${BASH_REMATCH[3]} \
+                && ((! __BTS_CONT_DISABLED)); then
                 local GID="${GID:-$(id -g)}"
                 local bts_cont="${BTS_CONT:-}"
                 local cont_name="${BTS_CONT_NAME:-}"
@@ -1516,8 +1535,8 @@ _run_class_in_container() {
                 fi
                 _run_class_tests_in_container "$test_class" "$cont_name" "$unit_cont" "$bts_cont" || r=$?
                 ((r)) && ((++global_failures))
-            else
-                echo_e "Failed to parse @bts_cont command"
+            elif (( ! __BTS_CONT_DISABLED )); then
+                echo_e "Failed to parse @bts_cont command: $?"
                 exit $r_syntax
             fi
         fi
@@ -1653,7 +1672,7 @@ _run_batch() {
     #exec 5>&2 ## error output
     for ((k=0;k<total_classes;++k)); do
         local test_class="${ordered_test_classes[$k]}"
-        if (( ! WITHIN_CONT )) && { __wants_unit_container "$test_class" || __wants_container "$test_class" ;}; then
+        if (( ! WITHIN_CONT )) && __wants_container "$test_class"; then
             _run_class_in_container "$test_class" || continue
         else
             _run_class || continue

@@ -1,3 +1,5 @@
 results/
 .*.sw*
 *~
+local/
+*.old
