@@ -35,9 +35,9 @@ unset __rnd
 __bts_trap_exit() {
     local retval=$?
     ## TODO before deleting temps, move results to ./reports!
-    if (( ! retval )); then
+    #if (( ! retval )); then
         \rm -rf "$__bts_tmp_dir" "$_test_tmp_dir"
-    fi
+    #fi
     exit $retval
 }
 trap '__bts_trap_exit' EXIT
