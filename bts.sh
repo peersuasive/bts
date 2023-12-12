@@ -26,6 +26,21 @@ PRETTY_NAME=1
 RAW_RUN=0
 CLEAN_UP=0
 
+typeset -r rnd="$RANDOM"
+typeset -rx __bts_tmp_dir="/tmp/__bts_tmp_dir.__$rnd"
+typeset -rx _test_tmp_dir="/tmp/__bts_tmp.$rnd"
+#mkdir -p "$__bts_tmp_dir" "$_test_tmp_dir"
+
+__bts_trap_exit() {
+    local retval=$?
+    ## TODO before deleting temps, move results to ./reports!
+    if (( ! retval )); then
+        \rm -rf "$__bts_tmp_dir" "$_test_tmp_dir"
+    fi
+    exit $retval
+}
+trap '__bts_trap_exit' EXIT
+
 ## try to use bash's 4.4+ Parameters Transformations to keep empty arguments by quoting them
 bts_bash_tr=0
 (( "${BASH_VERSINFO[0]:-0}${BASH_VERSINFO[1]:-0}" > 43 )) && bts_bash_tr=1;
@@ -39,7 +54,7 @@ Usage notes:
     Tests are expected to be found in folder 'tests/' (see '-t' option),
     named as '[NN].<test>.sh'; ex.: tests/00.bts_tests.sh.
 
-    Results are stored in 'results/[TEST CLASS]/[TEST NAME].log'
+    Results are stored in 'reports/[TEST CLASS]/[TEST NAME].log'
     Tests classes are to be stored in 'tests/[0-9]*.test_name.sh'
     Tests starting with underscore (_) or arobase (@) are ignored.
     Tests are executed in order.
@@ -657,7 +672,7 @@ VERBOSE=0
 home="$( dirname "$(readlink -f "$0")" )"
 here="$(readlink -f "$PWD")"
 guessed_project="$(basename "$here")"
-results_base="$here/results"
+reports_base="$here/reports"
 
 ## ------ functions
 declare -a _class_tests=()
@@ -1015,7 +1030,7 @@ _run_raw_cont() {
             -e "no_proxy=${no_proxy:-${NO_PROXY:-}}" \
             -e TZ="$(cat /etc/timezone 2>/dev/null||echo 'Europe/Paris')" \
             -v "$PWD":"$PWD" \
-            -v /tmp/bts:/tmp/bts \
+            -v "/__bts_tmp:/__bts_tmp:ro" \
             -w "$PWD" \
         "localhost/${WITHIN_CONT_NAME}:${cont_tag}" "$bts_cmd" --raw "$test_call" | dos2unix
     )
@@ -1043,14 +1058,16 @@ _run_raw() {
         return $r_fatal
     fi
 
-    local bts_test_class_file="/tmp/bts/${test_class}/${test_class}_bts.sh"
+    local bts_test_class_file="${__bts_tmp_dir}/${test_class}/${test_class}_bts.sh"
     if ! [[ -f "$bts_test_class_file" ]]; then
         ## TODO _prepare_class "$test_class_file"
+        ## create bts's tmp. dir, it might be missing if called with --raw
+        mkdir -p "${__bts_tmp_dir}"
         _get_called_tests "$test_call"
         _prepare_class "$test_class_file"
     fi
 
-    local test_file="/tmp/bts/${test_class}/${test_name}"
+    local test_file="${__bts_tmp_dir}/${test_class}/${test_name}"
     ## check if file exists
     [[ -f "$test_file" ]]
 
@@ -1082,7 +1099,7 @@ _prepare_class() {
     ## TODO prepare test: substitute %{...},
     # get rid of @load_cont (or set to ignore it?)
     local class_name="${test_class%.sh}"; class_name="${class_name##*/}"
-    local __class_tmp_dir=/tmp/bts/"$class_name"
+    local __class_tmp_dir=${__bts_tmp_dir}/"$class_name"
     \mkdir -p "$__class_tmp_dir"
     local main_tmp_sh="${__class_tmp_dir}/${class_name}_bts.sh"
 
@@ -1184,8 +1201,10 @@ HANDLERS
             echo "export ${test_function##test_}=1; export ${test_function##test_}__test=1" >> "$bts_test_func"
 
             ## load specific env
-            if [[ -f "/tmp/bts/.env.bts" ]]; then
-                echo "source \"/tmp/bts/.env.bts\"" >> "$bts_test_func"
+            if [[ -f "${__bts_tmp_dir}/.env.bts" ]]; then
+                echo "source \"${__bts_tmp_dir}/.env.bts\"" >> "$bts_test_func"
+            elif [[ -f "/__bts_tmp/.env.bts" ]]; then
+                echo "source \"/__bts_tmp/.env.bts\"" >> "$bts_test_func"
             fi
 
             ## load setup, teardown, etc.
@@ -1343,7 +1362,7 @@ __build_cont_image() {
     echo -n "[Preparing environment for ${tn}...]"
     (
         set -euo pipefail
-        local test_base="/tmp/bts/$tn"
+        local test_base="${__bts_tmp_dir}/$tn"
         ! [[ -d "$test_base" ]] && mkdir -p "$test_base"
         local cont_log="${test_base}/container.log"
         local cont_log_err="${test_base}/container.err.log"
@@ -1389,7 +1408,7 @@ __build_main_image() {
     ## re-build image only if something's been updated
 
     ## dump descriptor
-    local dockerfile=/tmp/bts/Dockerfile.main
+    local dockerfile=${__bts_tmp_dir}/Dockerfile.main
     cat <<'DOCKERFILE' > "$dockerfile"
 FROM alpine
 ARG UID
@@ -1442,7 +1461,7 @@ DOCKERFILE
     echo -n "[Preparing environment for ${tcn}...]"
     (
         set -euo pipefail
-        local test_base="/tmp/bts/$tcn"
+        local test_base="${__bts_tmp_dir}/$tcn"
         ! [[ -d "$test_base" ]] && mkdir -p "$test_base"
         local cont_log="${test_base}/container_unit.log"
         local cont_log_err="${test_base}/container_unit.err.log"
@@ -1550,6 +1569,7 @@ _run_class_tests_in_container() {
         -e WITHIN_CONT_VOLUMES="$volumes" \
         -u "${UID}:${GID}" \
         -v bts_pods:"$HOME/.local/share/containers" \
+        -v "${__bts_tmp_dir}:/__bts_tmp:ro" \
         -v "$rp":"$rp" \
         -w "$rp" \
             "$image_name" \
@@ -1613,8 +1633,12 @@ _run_class() {
 
     for ((i=0;i<total;++i)); do
         local test_name="${tests_for_class[$i]}"
-        log_file="/tmp/bts/${test_class_name}/${test_name}.log"
-        log_file_err="/tmp/bts/${test_class_name}/${test_name}.err.log"
+
+        local report_dir="${reports_base}/${test_class_name}"
+        mkdir -p "$report_dir"
+
+        log_file="${report_dir}/${test_name}.log"
+        log_file_err="${report_dir}/${test_name}.err.log"
         exec 1>>"$log_file"
         exec 2>>"$log_file_err"
 
@@ -1634,7 +1658,7 @@ _run_class() {
             _run_raw "$t" || r=$?
         fi
         
-        _manage_results "$r" "/tmp/bts/${test_class_name}/${test_name}" || r=$?
+        _manage_results "$r" "${report_dir}/${test_name}" || r=$?
         ((r)) && class_failure=1
         ((r>1)) && break
     done
@@ -1681,15 +1705,18 @@ _run_batch() {
         done
         return 0
     fi
-    ## clean up before processing
-    \rm -rf /tmp/bts
-    mkdir -p /tmp/bts
+
+    ## create bts's tmp. dir.
+    mkdir -p "${__bts_tmp_dir}"
 
     ## FIXME this should go in _prepare_class
     ## copy specific environment into context, just one, by order or preference
     for b_env in .env.bts .bts.env bts.env; do
         if [[ -f "$b_env" ]]; then
-            \cp "$b_env" "/tmp/bts/.env.bts"
+            \cp "$b_env" "${__bts_tmp_dir}/.env.bts"
+            break
+        elif [[ -f "/__bts_tmp/$b_env" ]]; then
+            \cp "/__bts_tmp/$b_env" "${__bts_tmp_dir}/.env.bts"
             break
         fi
     done
@@ -1779,7 +1806,7 @@ while (($#)); do
         -t|--tests-dir) TEST_DIR="$2"; shift;;
         -r|--project-root) PROJECT_ROOT="$2"; shift;;
         -f|--first-fail) FIRST_FAIL=1;;
-        -C|--clean) CLEAN_UP=1;;
+        --clean) CLEAN_UP=1;;
         --raw) RAW_RUN=1;;
         *) ARGS+=( "$1" )
             shift
@@ -1790,22 +1817,35 @@ while (($#)); do
     shift
 done
 
+!((NO_COLORS)) && _set_colors
+set -- "${ARGS[@]}"
+
 ## clean up env and exit
 if (( CLEAN_UP )); then
-    echo "TODO"
-    ## TODO remove all containers: docker volume rm bts_pods, bts/unit
-    ## TODO remove temporary files: /tmp/bts
-    ## TODO remove reports, if within a projects: detect in tests/ exists and, if so, remove ./reports
+    ## remove all containers: docker volume rm bts_pods, bts/unit
+    docker rmi bts/unit 1>/dev/null 2>/dev/null||true
+    docker volume rm bts_pods 1>/dev/null 2>/dev/null||true
+    ## remove temporary files: /tmp/bts
+    \rm -rf /tmp/__bts_tmp_dir.__*  ||true
+    ## remove reports, if within a projects: detect in tests/ exists and, if so, remove ./reports
+    if [[ -d "${TEST_DIR:-}" && -d reports ]]; then
+        \rm -rf reports || true
+    fi
     exit 0
 fi
 
-!((NO_COLORS)) && _set_colors
-set -- "${ARGS[@]}"
 ## no tests found
 ! [[ -d "$TEST_DIR" ]] && echo "Nothing to test" && exit 0
 
 export __BTS_TEST_DIR="$TEST_DIR"
 export PROJECT_ROOT="$( readlink -f "${PROJECT_ROOT:-.}" )"
+
+## clean up before processing
+if ! (( WITHIN_CONT )) && ! [[ -e /__bts_tmp ]]; then
+    echo "Cleaning previous run..."
+    \rm -rf "${__bts_tmp_dir}"
+    \rm -rf "$reports_base"
+fi
 
 if ((RAW_RUN)); then
     _run_raw "$1"
