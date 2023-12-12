@@ -26,9 +26,10 @@ PRETTY_NAME=1
 RAW_RUN=0
 CLEAN_UP=0
 
-typeset -r rnd="$RANDOM"
-typeset -rx __bts_tmp_dir="/tmp/__bts_tmp_dir.__$rnd"
-typeset -rx _test_tmp_dir="/tmp/__bts_tmp.$rnd"
+typeset __rnd="$RANDOM"
+typeset -rx __bts_tmp_dir="/tmp/__bts_tmp_dir.__$__rnd"
+typeset -rx _test_tmp_dir="/tmp/__bts_tmp.$__rnd"
+unset __rnd
 #mkdir -p "$__bts_tmp_dir" "$_test_tmp_dir"
 
 __bts_trap_exit() {
