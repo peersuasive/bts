@@ -90,17 +90,31 @@ Utils (functions):
 
 Utils (class)
     @load                       load a file relative to test dir; useful to load common tests or functions, for instance
-    @bts_cont [1|0|<Dockerfile>] [container-name]
+    @bts_cont [0|false|1|true|<Dockerfile>] [container-name]
+              -d|--dockerfile <dockerfile>
+              -c|--cont-name <container_name>
+              -u|--unit-tests
+              -v|--volumes <path[,path> (eg., /tmp/mytests,/var/logs/apache)
+ 
+                                0|false: disable @bts_cont
+                                1|true: enable @bts_cont (default)
+                                -u: use container in unit-tests mode (see @bts_unit_cont)
+                                -v: folders to mount as volumes in container
+
                                 run tests inside a container
                                 (note: requires docker to be installed)
 
                                 A Dockerfile needs to be provided to this command to work.
                                 BTS will look for 'Dockerfile.bts' (or the provided filename) at the root of the project.
+                                NOTE on containers: BTS expects some GNU commands to be installed and doesn't work well with BusyBox.
+                                                    Required (GNU) tools are: grep, sed, find, mktemp.
+                                                    This is usually solved by installing 'coreutils', 'sed' and 'findutils' packages.
 
                                 An image will be created under bts/{project-name}/{test-name}, unless a container-name has been provided, in which case this last one will be used instead.
 
     @bts_unit_cont [1|0|<Dockerfile>]
                                 same as @bts_cont but each test is run in a separate container
+                                (note: this is a wrapper actually calling @bts_cont --unit-tests)
 
                                 note: internally, these containers are run with podman.
                                 A docker volume, bts_cont, will be created to host associated images. Images will be automatically updated if the referenced Dockerfile has been modified.
@@ -355,17 +369,22 @@ BTS_CAPTURED_OUT=
 BTS_CONT=0
 BTS_CONT_NAME=
 BTS_CONT_CAN_SHARE=0
+BTS_UNIT_CONT=0
+BTS_VOLUMES=
 WITHIN_CONT=${WITHIN_CONT:-0}
 WITHIN_CONT_NAME="${WITHIN_CONT_NAME:-}"
 WITHIN_CONT_TAG="${WITHIN_CONT_TAG:-}"
-#SHARED_CONT=${SHARED_CONT:-0}
+WITHIN_UNIT_CONT=${WITHIN_UNIT_CONT:-0}
+WITHIN_CONT_VOLUMES="${WITHIN_CONT_VOLUMES:-}"
 __BTS_CONT_DISABLED=0
+#SHARED_CONT=${SHARED_CONT:-0}
 ### load all tests together within a container
 ## @bts_cont [enabled:1 (default)|disabled:0|Dockerfile to use (defaults: Dockerfile.bts)] [container_name]
 # returns
 # BTS_CONT: Dockerfile to use (defaults to Dockerfile.bts)
 # BTS_CONT_NAME: name of the container to use (defaults: empty)
 # BTS_CONT_CAN_SHARE: if BTS_CONT is equal to Dockerfile.bts, set to 1 (default: 0)
+# @bts_cont [-c|--container-name <cont_name>] [-u|--unit-tests] [0|1|false|true|<dockerfile>]
 @bts_cont() {
     ## reset
     BTS_CONT=0
@@ -374,41 +393,48 @@ __BTS_CONT_DISABLED=0
     __BTS_CONT_DISABLED=0
     BTS_UNIT_CONT=0
 
-    local cont_state="${1:-}"
-    local cont_name="${2:-}"; cont_name="${cont_name,,}"
-    if [[ "${cont_state,,}" == false || "$cont_state" == 0 ]]; then __BTS_CONT_DISABLED=1; return 0; fi
-    [[ -f "$cont_state" ]] && BTS_CONT="$cont_state" || BTS_CONT="Dockerfile.bts"
+    local cont_name=""
+    local unit_cont=0
+    local dockerfile=""
+    local volumes=""
+    local args=()
+    while (($#)); do
+        case "$1" in
+            -c|--container-name) cont_name="$2"; shift;;
+            -u|--unit-tests) unit_cont=1;;
+            -d|--dockerfile) dockerfile="$2"; shift;;
+            -v|--volumes) volumes="$2"; shift;;
+            -*) echo "Unknown option: '$1'"; exit $r_syntax;;
+            *) args+=( "$1" );;
+        esac
+        shift
+    done
+    set -- "${args[@]:-}"
+
+    cont_state="${dockerfile:-${1:-}}"
+    if [[ "${cont_state,,}" == "false" || "$cont_state" == 0 ]]; then __BTS_CONT_DISABLED=1; return 0; fi
+    if [[ "${cont_state,,}" == "true" || "$cont_state" == 1 ]]; then cont_state=""; fi
+    [[ -z "${cont_state:-}" ]] && BTS_CONT="Dockerfile.bts" || BTS_CONT="$cont_state"
+
+    ! [[ -f "$BTS_CONT" ]] && echo "${FUNCNAME[*]}: Can't find dockerfile: '$BTS_CONT'" >&2 && exit $r_fatal
+
     [[ "$BTS_CONT" == "Dockerfile.bts" && -z "$cont_name" ]] && BTS_CONT_CAN_SHARE=1
     BTS_CONT_NAME="${cont_name:+bts/${cont_name#bts/}}"
+    BTS_UNIT_CONT="${unit_cont:-0}"
+
     return 0
 }
-WITHIN_UNIT_CONT=${WITHIN_UNIT_CONT:-0}
-BTS_UNIT_CONT=0
 ### load each test into its own container
 @bts_unit_cont() {
-    ## reset
-    BTS_CONT=0
-    BTS_CONT_NAME=""
-    BTS_CONT_CAN_SHARE=0
-    __BTS_CONT_DISABLED=0
-    BTS_UNIT_CONT=0
-
-    local cont_state="${1:-}"
-    local cont_name="${2:-}"; cont_name="${cont_name,,}"
-    if [[ "${cont_state,,}" == false || "$cont_state" == 0 ]]; then __BTS_CONT_DISABLED=1; return 0; fi
-    if [[ "${cont_state,,}" == true || "$cont_state" == 1 ]]; then cont_state=""; fi
-    if [[ -z "${cont_state:-}" ]]; then
-        BTS_CONT="Dockerfile.bts"
-    else
-        BTS_CONT="$cont_state"
-    fi
-    ! [[ -f "$BTS_CONT" ]] && echo "${FUNCNAME[*]}: Can't find dockerfile: '$BTS_CONT'" >&2 && exit $r_fatal
-    [[ "$BTS_CONT" == "Dockerfile.bts" && -z "$cont_name" ]] && BTS_CONT_CAN_SHARE=1
-    BTS_CONT_NAME="${cont_name:+bts/${cont_name#bts/}}"
-    BTS_UNIT_CONT=1
-    return 0
+    @bts_cont --unit-tests "$@"
 }
-exp_utils+=( @load @bts_cont @bts_unit_cont @escape_parameters )
+
+@mktmp() {
+    \mkdir -p "$_test_tmp_dir"
+    \mktemp -dp "$_test_tmp_dir"
+}
+
+exp_utils+=( @load @bts_cont @bts_unit_cont @escape_parameters @mktmp )
 
 __wants_container() {
     grep -qP '^[[:space:]]*@bts_(unit_)?cont[[:space:]]*(?:(?!0|false).)*$' "$1"
@@ -894,22 +920,43 @@ _build_test_image() {
     local cont_build_tag
     (( cont_shared )) && cont_build_tag='latest' || cont_build_tag="$cont_tag"
 
+    ## reset message
+    function __reset_msg {
+        local msg="${msg:-}"
+        if ((r)); then
+            msg+=" $FAILED"
+            echo_o "\r$msg"
+            echo_o -n "$CURRENT_MSG"
+            return $r
+        fi
+
+        msg+=" $OK"
+        echo_o -n "\r$msg"
+        printf "\r%${#msg}s" "" >&4
+        echo_o -n "\r$CURRENT_MSG"
+    }
+
     local msg="Building image: '${cont_name}:${cont_build_tag}' (from '$cont_file')..."
+
+    ## compute Dockerfile checksum
+    local dockerfile_sum; dockerfile_sum="sha256:$(sha256sum "$cont_file" | awk '{print $1}')"
+    ## check if descriptor has changed since last build
     local was_rebuilt=0
-    local created_at
-    if ! created_at="$(podman inspect --type=image -f '{{ .Created }}' "localhost/${cont_name#localhost/}:${cont_build_tag}" 2>/dev/null \
-            | sed -re 's;^(.+)[.][0-9]+([[:space:]]+)([+-][0-9]+).*$;\1\2\3;')" \
-        || (( $(date --date "$(stat -c '%y' "$cont_file")" +"%s") > $(date --date "$created_at" +"%s") ))
+    local image_sum
+    if ! image_sum="$(podman inspect --type=image -f '{{index .Config.Labels "bts.dockerfile.checksum" }}' "${cont_name}:${cont_tag}" 2>/dev/null | grep '.')" \
+        || [[ "$image_sum" != "$dockerfile_sum" ]]
     then
+        echo_o -n "\r${msg}"
         was_rebuilt=1
         ## create a tag instead of rebuilding image for tests sharing the same Dockerfile (problem: how to find out this is the same Dockerfile?...)
-        #echo_o -n "\rBuilding image: '${cont_name}:${cont_build_tag}' (from '$cont_file')..."
-        echo_o -n "\r${msg}"
         ## some discrepency between existing container and wanted one, probably coming from a more recent -- force rebuild
-        [[ -n "$created_at" ]] && no_cache=1
+        [[ -n "$image_sum" ]] && {
+            podman rmi --force "$(podman inspect --type=image -f '{{ .ID }}'|cut -d':' -f1)" 1>/dev/null 2>/dev/null || true
+            no_cache=1
+        }
         ## (re)build container if needed, execute within
         local tcn=${test_class##*/}; tcn="${tcn%.sh}"
-        local test_base="/tmp/bts/$tcn"
+        local test_base="${__bts_tmp_dir}/$tcn"
         ! [[ -d "$test_base" ]] && mkdir -p "$test_base"
         local cont_log="${test_base}/${test_name}.log"
         local cont_log_err="${test_base}/${test_name}.err.log"
@@ -917,7 +964,7 @@ _build_test_image() {
             set -euo pipefail
             local rr=0
  
-            podman build ${no_cache:+--no-cache} \
+            podman build ${no_cache:+--no-cache} --label "bts.dockerfile.checksum=${dockerfile_sum}" \
                 --build-arg "http_proxy=${http_proxy:-${HTTP_PROXY:-}}" \
                 --build-arg "https_proxy=${https_proxy:-${HTTPS_PROXY:-}}" \
                 --build-arg "no_proxy=${no_proxy:-${NO_PROXY:-}}" \
@@ -929,27 +976,23 @@ _build_test_image() {
 
             exit $rr
         ) 1>"$cont_log" 2>"$cont_log_err" || r=$?
-        if ((r)); then
-            msg+=" $FAILED"
-            echo_o "\r$msg"; sleep 0.1s
-            echo_o -n "$CURRENT_MSG"
-            return $r
-        fi
-    fi
-    ## update tag if shared image
-    if ((cont_shared)); then
-        if (( was_rebuilt )) || ! podman inspect --type=image "${cont_name}:${cont_tag}" 1>/dev/null 2>/dev/null; then
-            podman rmi "${cont_name}:${cont_tag}" 1>/dev/null 2>/dev/null || true
-            podman tag "${cont_name}:latest" "${cont_name}:${cont_tag}"
+        __reset_msg
+        if (( r )); then
+            echo "unit container failed to build" >&2
+            [[ -s "$cont_log" ]] && cat "$cont_log" >&2
+            [[ -s "$cont_log_err" ]] && cat "$cont_log_err" >&2
         fi
     fi
 
-    ## reset message
-    #printf "\r%${#msg}s" "" >&4
-    msg+=" $OK"
-    echo_o -n "\r$msg"; sleep 0.1s
-    printf "\r%${#msg}s" "" >&4
-    echo_o -n "\r$CURRENT_MSG"
+    ## update tag if shared image
+    if ((!r && cont_shared)); then
+        if (( was_rebuilt )) || ! podman inspect --type=image "${cont_name}:${cont_tag}" 1>/dev/null 2>/dev/null; then
+            echo_o -n "\r${msg}"
+            podman rmi "${cont_name}:${cont_tag}" 1>/dev/null 2>/dev/null || true
+            podman tag "${cont_name}:latest" "${cont_name}:${cont_tag}" 1>/dev/null || r=$?
+            __reset_msg
+        fi
+    fi
 }
 
 _run_raw_cont() {
@@ -1293,14 +1336,6 @@ __build_cont_image() {
         return 0
     fi
 
-    ## rebuild image only if necessary
-    local cont_created_at
-    if cont_created_at="$(docker inspect --type=image -f '{{ .Created }}' "$cont_name" 2>/dev/null)" \
-        && (( $(date --date "$(stat -c '%y' "$bts_cont")" +"%s") <= $(date --date "$cont_created_at" +"%s") ))
-    then
-        return 0
-    fi
-
     ## remove old image
     docker rmi "$cont_name" 2>/dev/null 1>/dev/null || true
 
@@ -1376,7 +1411,7 @@ ENV https_proxy=${https_proxy}
 ENV GID=${GID}
 ENV LOGNAME=${LOGNAME}
 
-RUN apk add --no-cache sudo podman ca-certificates bash musl-locales tzdata coreutils lsb-release fuse-overlayfs \
+RUN apk add --no-cache sudo podman ca-certificates bash musl-locales tzdata coreutils findutils lsb-release fuse-overlayfs \
     && cp /usr/share/zoneinfo/${TZ} /etc/localtime
 
 RUN echo "${LOGNAME}:10000:65536" >> /etc/subuid \
@@ -1455,6 +1490,7 @@ _run_class_tests_in_container() {
     local cont_name="${2:-bts/$guessed_project/$guessed_project}"
     local unit_cont="${3:-0}"
     local cont_file="${4:-Dockerfile.bts}"
+    local volumes="${5:-}"
     
     ## restart bts in docker with current class
     # and WITHIN_CONT set
@@ -1499,6 +1535,11 @@ _run_class_tests_in_container() {
         unset privileged
     fi
 
+    ## TODO mount BTS_VOLUMES
+    local vols=()
+    for vol in $(echo "${volumes:-}" | sed -re 's;,[[:space:]]; ;g'); do
+        vols+=( "-v \"${vol}:${vol}\"" )
+    done
     docker run --rm ${with_tty:+-it} ${privileged:+--privileged} \
         -e "http_proxy=${http_proxy:-${HTTP_PROXY:-}}" \
         -e "https_proxy=${https_proxy:-${HTTPS_PROXY:-}}" \
@@ -1508,6 +1549,7 @@ _run_class_tests_in_container() {
         -e WITHIN_UNIT_CONT="${unit_cont}" \
         -e WITHIN_CONT_NAME="$cont_name" \
         -e WITHIN_CONT_FILE="$cont_file" \
+        -e WITHIN_CONT_VOLUMES="$volumes" \
         -u "${UID}:${GID}" \
         -v bts_pods:"$HOME/.local/share/containers" \
         -v "$rp":"$rp" \
@@ -1528,13 +1570,14 @@ _run_class_in_container() {
                 local cont_name="${BTS_CONT_NAME:-}"
                 local bts_cont_can_share="${BTS_CONT_CAN_SHARE:-0}"
                 local unit_cont=${BTS_UNIT_CONT:-0}
+                local volumes="${BTS_VOLUMES:-}"
                 local r=0
                 if ((unit_cont)); then
                     __build_main_image "$test_class"
                 else
                     __build_cont_image "$test_class" "$bts_cont" "$cont_name" "$bts_cont_can_share"
                 fi
-                _run_class_tests_in_container "$test_class" "$cont_name" "$unit_cont" "$bts_cont" || r=$?
+                _run_class_tests_in_container "$test_class" "$cont_name" "$unit_cont" "$bts_cont" "$volumes" || r=$?
                 ((r)) && ((++global_failures))
             elif (( ! __BTS_CONT_DISABLED )); then
                 echo_e "Failed to parse @bts_cont command: $?"
