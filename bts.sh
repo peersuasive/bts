@@ -128,11 +128,12 @@ exp_cmds=()
 exp_utils=()
 
 ## ----------------------- lib
-declare RST BLINK INV BLUE RED GREEN YELLOW MAGENTA WHITE CYAN
+declare RST BLINK INV BLUE RED GREEN YELLOW MAGENTA WHITE CYAN GREY
 diff_=$(which diff) || { fatal "Can't find 'diff' command!"; exit 1; }
 bts_diff() {
     $diff_ "$@"
 }
+# shellcheck disable=SC2034
 _set_colors() {
     declare -gr BOLD='\033[1m'
     declare -gr RST='\033[0m'
@@ -146,7 +147,7 @@ _set_colors() {
     declare -gr BLUE='\033[34m'
     declare -gr MAGENTA='\033[35m'
     declare -gr CYAN='\033[36m'
-    declare -gr GRAY='\033[37m'
+    declare -gr GREY='\033[37m'
     declare -gr WHITE='\033[97m'
     declare -gr BLACKB='\033[0;40m'
     declare -gr REDB='\033[0;41m'
@@ -155,8 +156,8 @@ _set_colors() {
     declare -gr BLUEB='\033[0;44m'
     declare -gr PURPLEB='\033[0;45m'
     declare -gr CYANB='\033[0;46m'
-    declare -gr GRAYB='\033[0;47m'
-    exp_vars+=( BOLD RST BLINK INV UND BLACK RED GREEN YELLOW BLUE MAGENTA WHITE CYAN GRAY WHITE BLACKB REDB GREENB YELLOWB BLUEB PURPLEB CYANB GRAYB )
+    declare -gr GREYB='\033[0;47m'
+    exp_vars+=( BOLD RST BLINK INV UND BLACK RED GREEN YELLOW BLUE MAGENTA WHITE CYAN GREY WHITE BLACKB REDB GREENB YELLOWB BLUEB PURPLEB CYANB GREYB )
 
     if which colordiff 1>/dev/null 2>/dev/null; then
         diff_=colordiff
@@ -219,28 +220,28 @@ echo_e() {
 }
 
 fail() {
-    [[ -n "${1:-}" ]] && echo "[$FAILED] $@"
+    [[ -n "${1:-}" ]] && echo "[$FAILED] $*"
     return $r_fail
 }
 ok() {
-    [[ -n "${1:-}" ]] && echo "[$OK] $@"
+    [[ -n "${1:-}" ]] && echo "[$OK] $*"
     return $r_ok
 }
 fatal() {
-    [[ -n "${1:-}" ]] && echo "[$FATAL] $@" >&2
+    [[ -n "${1:-}" ]] && echo "[$FATAL] $*" >&2
     return $r_fatal
 }
 todo() {
-    echo -ne "${YELLOW}[$TODO]${@+ ${BOLD}${CYAN}$@}${RST}" >&2
+    echo -ne "${YELLOW}[$TODO]${*+ ${BOLD}${CYAN}$@}${RST}" >&2
     exit $r_todo
 }
 
 dbg() {
-    ((!QUIET && DEBUG)) && echo -e "${INV}${BOLD}[DBG]${RST} ${BOLD}${WHITE}$@${RST}" >&1
+    ((!QUIET && DEBUG)) && echo -e "${INV}${BOLD}[DBG]${RST} ${BOLD}${WHITE}$*${RST}" >&1
     return 0
 }
 DBG() {
-    ((DEBUG_BTS)) && echo -e "${INV}${BOLD}${BLUE}[BTS]${RST} ${BOLD}${WHITE}$@${RST}" >&1
+    ((DEBUG_BTS)) && echo -e "${INV}${BOLD}${BLUE}[BTS]${RST} ${BOLD}${WHITE}$*${RST}" >&1
     return 0
 }
 
@@ -1467,11 +1468,6 @@ _run_class_tests_in_container() {
     # create pandoc repository if missing
     \mkdir -p "$HOME/.local/shared/containers"
 
-    ## DEV/TEST
-    #export WITHIN_CONT=1
-    #"$bts_cmd" ${ORIG_ARGS[@]} "$test_class"
-    ## DEV/TEST
-
     local tests_to_call=()
     for test_name in ${test_classes["$test_class"]}; do
         tests_to_call+=( "${test_class}:${test_name}" )
@@ -1485,6 +1481,11 @@ _run_class_tests_in_container() {
         docker volume create bts_pods 1>/dev/null 2>/dev/null
     fi
  
+    ### create a volume for temporary files
+    #docker volume rm bts_tmp 1>/dev/null 2>/dev/null || true
+    #docker volume create bts_tmp 1>/dev/null 2>/dev/null
+    #-v bts_tmp:/__bts_tmp ${volumes:+${vols[@]}} \
+
     ## TODO use image associated with the class
     # or, if shared, associated with the project
 
@@ -1580,7 +1581,7 @@ _run_class() {
         _get_test_name "$test_name"
         local ts="${__test_name}"
         local n; n=$(printf "%0${pad_l}d" "$((i + 1))")
-        #echo_o -n "[${n}/${total}] ${BOLD}${WHITE}${ts}${RST}"
+
         CURRENT_MSG="[${n}/${total}] ${BOLD}${WHITE}${ts}${RST}"
         echo_o -n "$CURRENT_MSG"
         ## call test in an isolated environment (somehow)
@@ -1667,9 +1668,6 @@ _run_batch() {
     
     local global_failures=0
     ## TODO send these to ./report/test/...
-    #for test_class in "${ordered_test_classes[@]}"; do
-    #exec 4>&1 ## standard output
-    #exec 5>&2 ## error output
     for ((k=0;k<total_classes;++k)); do
         local test_class="${ordered_test_classes[$k]}"
         if (( ! WITHIN_CONT )) && __wants_container "$test_class"; then
@@ -1678,10 +1676,6 @@ _run_batch() {
             _run_class || continue
         fi
     done
-    #exec 1>&4
-    #exec 2>&5
-    #exec 4>&-
-    #exec 5>&-
 
     ## don't display summary for only one class
     if ((total_classes == 1)); then
