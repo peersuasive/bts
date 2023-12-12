@@ -48,6 +48,7 @@ bts_bash_tr=0
 export bts_bash_tr
 
 usage() {
+#readarray msg <<EOU
     cat <<EOU
 Usage: ${0##*/} [-h] [OPTIONS] [test...]
 
@@ -151,6 +152,7 @@ Debug/trace:
     trace    display message in output (logged)
     dbg      display a dbg message in output (logged)
 EOU
+    #printf "%s" "${msg[*]}"
 }
 
 exp_vars=()
@@ -1818,7 +1820,7 @@ while (($#)); do
     shift
 done
 
-!((NO_COLORS)) && _set_colors
+! ((NO_COLORS)) && _set_colors
 set -- "${ARGS[@]}"
 
 ## clean up env and exit
