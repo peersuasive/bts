@@ -76,7 +76,7 @@ Options:
     -D|--DEBUG              debug BTS
     -dd|--extra-debug       enable extra dbg traces (typically, turns 'set -x' on)
     -d|--debug              enable dbg traces
-    -C|--clean              clean everything possible bts might have been produced and exit, that is: containers, temporary files & (current projects, if any) reports
+    --clean              clean everything possible bts might have been produced and exit, that is: containers, temporary files & (current projects, if any) reports
     
 
 Utils (functions):
@@ -87,9 +87,11 @@ Utils (functions):
     fail     exit test immediatly with a failure (FAIL) message
     ok       exit test immediatly with a success (OK) message
     todo     exit test immediatly with a TODO message; this is accounted as a failure but notified as an unimplemented test also
-    assert [ok|true|ko|false|equals|same|empty] <expression>
+    assert <COMMAND> <expression>
         true     assert evaluation is true
-        false    assert evaluation if false
+        false    assert evaluation is false
+        ok       assert call returned 0
+        ko       assert call returned 1
         equals   assert left string equals expected right string
         empty    assert result output is empty
         same     assert left string or file contents equals expected right string or file contents
@@ -97,13 +99,21 @@ Utils (functions):
         samecol  compare same column from two files; column number and separator can be passed after files (default: column 1, comma (;) as separator)
         samecol~ compare same column from two unordered files; column number and separator can be passed after files (default: column 1, comma (;) as separator)
         exists   assert contents exist
-        err      assert last error log contains expression (requires @capture_logs)
+        file|dir assert file or directory exists
+        file~|dir~
+                 same as file|dir but accepts regular expressions
+        log|err|warn
+                 assert last log or error log contains expression (requires @capture_logs)
     asset [-n] <asset[.gz|bz2]> [dest-dir|dest-file]
-        try its best to find file in 'TEST_DIR/assets/[test_name]...' and send it to destination or stdout
-        -n       pass full path to ressource, instead of contents
+           -n    return full path to ressource, instead of contents
+
+        tries its best to find file in 'TEST_DIR/assets/[test_name]...' and send it to destination or stdout
     @should_fail <expression>
-                assert next evaluation fails as expected
-    @capture_log capture logs (required by assert err)
+        assert next evaluation fails as expected
+    @capture_logs
+        capture logs (required by assert err)
+    @export_var
+        export a variable into test environment (useful when using another function called in test environment to check a value)
 
 Utils (class)
     @load                       load a file relative to test dir; useful to load common tests or functions, for instance
@@ -113,37 +123,38 @@ Utils (class)
               -u|--unit-tests
               -v|--volumes <path[,path> (eg., /tmp/mytests,/var/logs/apache)
  
-                                0|false: disable @bts_cont
-                                1|true: enable @bts_cont (default)
-                                -u: use container in unit-tests mode (see @bts_unit_cont)
-                                -v: folders to mount as volumes in container
+               0|false: disable @bts_cont
+               1|true: enable @bts_cont (default)
+               -u: use container in unit-tests mode (see @bts_unit_cont)
+               -v: folders to mount as volumes in container
 
-                                run tests inside a container
-                                (note: requires docker to be installed)
+        run tests inside a container
+        (note: requires docker to be installed)
 
-                                A Dockerfile needs to be provided to this command to work.
-                                BTS will look for 'Dockerfile.bts' (or the provided filename) at the root of the project.
-                                NOTE on containers: BTS expects some GNU commands to be installed and doesn't work well with BusyBox.
-                                                    Required (GNU) tools are: grep, sed, find, mktemp.
-                                                    This is usually solved by installing 'coreutils', 'sed' and 'findutils' packages.
+        A Dockerfile needs to be provided to this command to work.
+        BTS will look for 'Dockerfile.bts' (or the provided filename) at the root of the project.
+        NOTE on containers: BTS expects some GNU commands to be installed and doesn't work well with BusyBox.
+                            Required (GNU) tools are: grep, sed, find, mktemp.
+                            This is usually solved by installing 'coreutils', 'sed' and 'findutils' packages.
 
-                                An image will be created under bts/{project-name}/{test-name}, unless a container-name has been provided, in which case this last one will be used instead.
+        An image will be created under bts/{project-name}/{test-name}, unless a container-name has been provided, in which case this last one will be used instead.
 
     @bts_unit_cont [1|0|<Dockerfile>]
-                                same as @bts_cont but each test is run in a separate container
-                                (note: this is a wrapper actually calling @bts_cont --unit-tests)
+        same as @bts_cont but each test is run in a separate container
+        (note: this is a wrapper actually calling @bts_cont --unit-tests)
 
-                                note: internally, these containers are run with podman.
-                                A docker volume, bts_cont, will be created to host associated images. Images will be automatically updated if the referenced Dockerfile has been modified.
-                                As this volume will grow up in time, it's recommended to purge it when using too much space! It'll be recreated on the fly when required.
+        note: internally, these containers are run with podman.
+        A docker volume, bts_cont, will be created to host associated images. Images will be automatically updated if the referenced Dockerfile has been modified.
+        As this volume will grow up in time, it's recommended to purge it when using too much space! It'll be recreated on the fly when required.
 
-                                An image will be stored under bts/unit:latest. This image is used to run bts in a main container before calling each test individually with their own container.
-                                This image is updated automatically when required.
+        An image will be stored under bts/unit:latest. This image is used to run bts in a main container before calling each test individually with their own container.
+        This image is updated automatically when required.
 
-    mock_funcs/__mock_funcs     load mockup functions; syntax: mockup_function[:alias]; ex., __mock_funcs='__crontab:crontab'
-                                this is mainly usefull when loading an environment before starting a new shell; for eg., ksh or another bash, etc.
+    mock_funcs/__mock_funcs
+        load mockup functions; syntax: mockup_function[:alias]; ex., __mock_funcs='__crontab:crontab'
+        this is mainly usefull when loading an environment before starting a new shell; for eg., ksh or another bash, etc.
 
-                                mock_funcs will print mocked functions & bodies (to redirect in a file or to load with eval, for instance).
+        mock_funcs will print mocked functions & bodies (to redirect in a file or to load with eval, for instance).
 
 Other
     .btsignore  bts will ignore _tests_ declared in this file -- one per line, no glob or regex; reminder: bts ignores anything not matching [0-9]*.sh anyway
