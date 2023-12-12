@@ -364,6 +364,16 @@ exp_cmds_pre+=( fail ok fatal todo dbg trace ltrace )
     return $r_todo
 }
 
+typeset -A __bts_test_vars
+@export_var() {
+    local v val
+    for v in "$@"; do
+        val="${!v}"
+        __bts_test_vars["$v"]="$val"
+    done
+}
+exp_utils+=( "@export_var" )
+
 BTS_CAPTURED_ERR=
 BTS_CAPTURED_OUT=
 @capture_logs() {
