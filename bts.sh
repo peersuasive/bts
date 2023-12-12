@@ -487,11 +487,12 @@ export SHOULD_FAIL=0
         if (( bts_bash_tr )); then
             ( trap - ERR; (! eval "${args[@]@Q}") ) && { SHOULD=0; SHOULD_FAIL=0; } && return $r_ok
         else
-            ( trap - ERR; (! eval "$(printf "%q " "${args[@]}")" ) ) && { SHOULD=0; SHOULD_FAIL=0; } && return $r_ok
+            ( trap - ERR; (! eval "$(printf "%q " "${args[@]}")" 2>/dev/null) ) && { SHOULD=0; SHOULD_FAIL=0; } && return $r_ok
         fi
     else
-        ( trap - ERR; (! eval "${args[@]}") ) && { SHOULD=0; SHOULD_FAIL=0; } && return $r_ok
+        ( trap - ERR; (! eval "${args[@]}" 2>/dev/null) ) && { SHOULD=0; SHOULD_FAIL=0; } && return $r_ok
     fi
+    # shellcheck disable=SC2119
     fail
 }
 
@@ -544,7 +545,7 @@ has_err=$(
             [[ "$a" == KO ]] && r=$((!r))
             ;;
         EQUALS) [[ "$cmp" == "$exp" ]] && r=0 || r=1;;
-        FILE~|DIR~) local dn="$(dirname "$cmp")"; find "$dn" -maxdepth 1 -regex "$dn/$(basename "$cmp")" 2>/dev/null| grep -q '.' && r=0 || r=1;;
+        FILE~|DIR~) local dn="$(dirname "$cmp")"; find "$dn" -maxdepth 1 -regextype "posix-egrep" -iregex "$dn/$(basename "$cmp")" 2>/dev/null| grep -q '.' && r=0 || r=1;;
         FILE|DIR)  [[ -e "$cmp" ]] && r=0 || r=1;;
         EXISTS) [[ -n "$cmp" ]] && {
                     ! [[ "$cmp" =~ ^[$] ]] && r=0 || {
@@ -1078,7 +1079,6 @@ _substitude_pseudo_vars() {
 ## prepare test file
 _prepare_class() {
     local test_class_file="$1"
-
     ## TODO prepare test: substitute %{...},
     # get rid of @load_cont (or set to ignore it?)
     local class_name="${test_class%.sh}"; class_name="${class_name##*/}"
@@ -1087,12 +1087,6 @@ _prepare_class() {
     local main_tmp_sh="${__class_tmp_dir}/${class_name}_bts.sh"
 
     _substitude_pseudo_vars "$test_class_file" > "$main_tmp_sh"
-    #cat "$test_class_file" > "$main_tmp_sh"
-    #sed -ri 's;%\{tests_dir\};'"${TEST_DIR}"';g' "$main_tmp_sh"
-    #sed -ri 's;%\{this\};'"${class_name}"';g' "$main_tmp_sh"
-    #sed -ri 's;%\{assets\};'"${TEST_DIR}/assets/${class_name}"';g' "$main_tmp_sh"
-    #sed -ri 's;%\{root_dir\};'"$(dirname "$(readlink -f "${TEST_DIR}")")"';g' "$main_tmp_sh"
-    #sed -ri 's;%\{assets_dir\};'"$(readlink -f "${TEST_DIR}/assets")"';g' "$main_tmp_sh"
 
     (
         # shellcheck disable=SC1090
@@ -1116,67 +1110,67 @@ _prepare_class() {
             #typeset -f "$test_function" > "${__class_tmp_dir}/${test_function}"
             local bts_test_func="${__class_tmp_dir}/${test_function}"
             cat <<'HANDLERS' > "$bts_test_func"
-set -o pipefail
-set -eE
-set -o functrace
-_trap_exit() {
-    local retval=$?
-    exit $retval
-}
-trap '_trap_exit' EXIT
-_trap_break() {
-    exit $r_break
-}
-trap '_trap_break' SIGINT
-trap '_trap_break' SIGTERM
+            set -o pipefail
+            set -eE
+            set -o functrace
+            _trap_exit() {
+                local retval=$?
+                exit $retval
+            }
+            trap '_trap_exit' EXIT
+            _trap_break() {
+                exit $r_break
+            }
+            trap '_trap_break' SIGINT
+            trap '_trap_break' SIGTERM
 
-local has_teardown=0
-_trap_err() {
-    local retval=$?
+            local has_teardown=0
+            _trap_err() {
+                local retval=$?
 
-    local line fline func
-    ((SHOULD)) && {
-        DBG "IS A SHOULD"
-        line=${BASH_LINENO[1]}
-        func="${FUNCNAME[2]}"
-    } || {
-        DBG "IS NOT A SHOULD"
-        line=${BASH_LINENO[0]}
-        func="${FUNCNAME[1]}"
-    }
-    fline="$line"
-    [[ "$func" != "$test_name" && ! "$func" =~ \@should_ ]] && {
-        fline="[RETURN]"
-        func="$test_name"
-    }
-    trap - ERR
+                local line fline func
+                ((SHOULD)) && {
+                    DBG "IS A SHOULD"
+                    line=${BASH_LINENO[1]}
+                    func="${FUNCNAME[2]}"
+                } || {
+                    DBG "IS NOT A SHOULD"
+                    line=${BASH_LINENO[0]}
+                    func="${FUNCNAME[1]}"
+                }
+                fline="$line"
+                [[ "$func" != "$test_name" && ! "$func" =~ \@should_ ]] && {
+                    fline="[RETURN]"
+                    func="$test_name"
+                }
+                trap - ERR
 
-    ## teardown anyway
-    ((has_teardown)) && {
-        "$teardown" || { echo "WARN: failed to execute '$teardown'!"; ((!retval)) && retval=$r_warn; }
-    }
+                ## teardown anyway
+                ((has_teardown)) && {
+                    "$teardown" || { echo "WARN: failed to execute '$teardown'!"; ((!retval)) && retval=$r_warn; }
+                }
 
-    echo "--- [$( ((retval)) && echo $FAILED || echo $OK)]: $test_name --------"
-    echo
-    local err_line=$(sed -n ${line}p "$f"|xargs|tr -d $'\n');
-    local trc="(--> [${FUNCNAME[*]}, ${BASH_LINENO[*]}])"
-    local t=( "Failed at ${test_class}:${func}:${fline}" ": ${err_line:-$BASH_COMMAND}" "$trc" "TRAP TO RETURN $retval" )
-    local max=0; for l in "${t[@]}"; do s=${#l}; (( s > max )) && max=$s; done; ((max+=4))
-    echo -e "${BOLD}${BLUE}-- traces ------------${RST}"
-    for l in "${t[@]}"; do
-        printf "${YELLOWB}    ${BLACK}%-${max}s${RST}\n" "$l"
-    done
+                echo "--- [$( ((retval)) && echo $FAILED || echo $OK)]: $test_name --------"
+                echo
+                local err_line=$(sed -n ${line}p "$f"|xargs|tr -d $'\n');
+                local trc="(--> [${FUNCNAME[*]}, ${BASH_LINENO[*]}])"
+                local t=( "Failed at ${test_class}:${func}:${fline}" ": ${err_line:-$BASH_COMMAND}" "$trc" "TRAP TO RETURN $retval" )
+                local max=0; for l in "${t[@]}"; do s=${#l}; (( s > max )) && max=$s; done; ((max+=4))
+                echo -e "${BOLD}${BLUE}-- traces ------------${RST}"
+                for l in "${t[@]}"; do
+                    printf "${YELLOWB}    ${BLACK}%-${max}s${RST}\n" "$l"
+                done
 
-    exit $retval
-}
-trap '_trap_err' ERR
+                exit $retval
+            }
+            trap '_trap_err' ERR
 
-command_not_found_handle() {
-    local line=${BASH_LINENO[0]}
-    local err_line; err_line=$(sed -n ${line}p "$f"|xargs|tr -d $'\n')
-    echo -e "FATAL: command not found: ${test_class}:${FUNCNAME[1]}:${BASH_LINENO[0]}:\n -> $err_line"
-    exit $r_cnf ## useless, handle won't pass exit code
-}
+            command_not_found_handle() {
+                local line=${BASH_LINENO[0]}
+                local err_line; err_line=$(sed -n ${line}p "$f"|xargs|tr -d $'\n')
+                echo -e "FATAL: command not found: ${test_class}:${FUNCNAME[1]}:${BASH_LINENO[0]}:\n -> $err_line"
+                exit $r_cnf ## useless, handle won't pass exit code
+            }
 HANDLERS
             echo ". \"$main_tmp_sh\"" >> "$bts_test_func"
             if ((has_preset)); then
@@ -1298,12 +1292,16 @@ _manage_results() {
     ## display outputs if required
     if ((show_logs)); then
         if [[ -s "$log_base".log ]]; then
+            echo -en "${GREY}" >&5
             cat "$log_base".log >&5
+            echo -en "${RST}" >&5
         fi
         if [[ -s "$log_base".err.log ]]; then
             cat "$log_base".err.log >&5
         fi
     fi
+    [[ ! -s "$log_base".err.log ]] && \rm -f "$log_base".err.log
+    [[ ! -s "$log_base".log ]] && \rm -f "$log_base".log
     ## exit on first failure or pass break status with r=1
     (( res && FIRST_FAIL )) && echo_e "ARG!!!!!!!!" && exit "$res"
     return $r
@@ -1647,15 +1645,18 @@ _run_class() {
     exec 4>&-
     exec 5>&-
 
+    set +e
+    local report_msg=""
+    report_msg="\u21d2"
+    report_msg+=" [$( ((failed)) && echo -n "$RED" || echo -n "$GREEN" )"
+    report_msg+="$((total - failed))$( ((failed)) && echo -n "$RST" )/$total${RST}]"
+    report_msg+=" ($( ((failed)) && echo -n "$RED" )$failed failure$( ((failed>1)) && echo -n "s" )"
+    report_msg+="$( ((unimplemented)) && echo -n ", $unimplemented being unimplemented test$( ((unimplemented>1)) && echo -n "s" )" ))"
+    set -e
+
     ## display class results
     __box_up --no-border -w 2 \
-        "\u21d2 [$( ((failed)) && echo -ne "$RED" || echo "$GREEN" )$((total - failed))$( ((failed)) && echo "$RST" )/$total${RST}] ($( ((failed)) && echo -ne "$RED" )$failed failure$( ((failed>1)) && echo s )$( ((unimplemented)) && echo ", $unimplemented being unimplemented test$( ((unimplemented>1)) && echo s )" ))"
-
-    #echo -e "${test_sep}${test_sep}${test_sep}"
-    #echo -e " \u21d2 [$(((failed)) && echo -ne "$RED" || echo "$GREEN")$((total - failed))$(((failed)) && echo "$RST")/$total${RST}] ($( ((failed)) && echo -ne "$RED" )$failed failure$(((failed>1)) && echo s)$(((unimplemented)) && echo ", $unimplemented being unimplemented test$(((unimplemented>1))&& echo s)"))"
-    ### tests separator
-    #echo -e "${test_sep}${test_sep}${test_sep}${test_sep}"
-    ##(( (k+1) < total_classes )) && echo_o ""
+        "$report_msg"
 }
 
 # shellcheck disable=SC2120
