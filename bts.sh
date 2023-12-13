@@ -534,7 +534,6 @@ export SHOULD_FAIL=0
 @should_fail() {
     #local cmd="$1"; shift;
     local args=( "$@" )
-    local r
     SHOULD=1
     SHOULD_FAIL=1
     #exec 9>&2
@@ -661,7 +660,7 @@ has_err=$(
             [[ "$a" == LOG ]] \
                 && read -ra logs <<< "${BTS_CAPTURED_OUT:-} ${BTS_TEST_LOG:-}" \
                 || read -ra logs <<< "${BTS_CAPTURED_ERR:-} ${BTS_TEST_ERR_LOG:-}"
-            local _filled=1
+            local _filled=0
             for l in "${logs[@]}"; do
                 [[ -s "$l" ]] && _filled=1 && break
             done
@@ -1712,6 +1711,7 @@ _run_class() {
         local report_dir="${reports_base}/${test_class_name}"
         mkdir -p "$report_dir"
 
+        ## FIXME assert log in podman will fail -- set BUGS.adoc for a fix
         log_file="${report_dir}/${test_name}.log"
         log_file_err="${report_dir}/${test_name}.err.log"
         BTS_TEST_LOG="$log_file"
