@@ -103,15 +103,15 @@ Utils (functions):
         file~|dir~
                  same as file|dir but accepts regular expressions
         log|err|warn
-                 assert last log or error log contains expression (requires @capture_logs)
+                 assert last log or error log contains expression
     asset [-n] <asset[.gz|bz2]> [dest-dir|dest-file]
            -n    return full path to ressource, instead of contents
 
         tries its best to find file in 'TEST_DIR/assets/[test_name]...' and send it to destination or stdout
     @should_fail <expression>
         assert next evaluation fails as expected
-    @capture_logs
-        capture logs (required by assert err)
+    @capture_logs (obsolete)
+        capture logs (can be used with assert log/err/warn)
     @export_var
         export a variable into test environment (useful when using another function called in test environment to check a value)
 
@@ -396,12 +396,29 @@ BTS_CAPTURED_OUT=
         BTS_CAPTURED_OUT="$(mktemp)"
         out_log="$BTS_CAPTURED_OUT"
     }
+    : > "$out_log"
+    : > "$err_log"
 
+    exec 8>&1
+    exec 9>&2
+    exec 1>"$out_log"
+    exec 2>"$err_log"
     local r=0
     ## capture and re-throw for bts
-    ! eval "$(printf "%q " "${args[@]}")" 1> >(tee "$out_log") 2> >(tee "$err_log" >&2) && r=1
+    #! eval "$(printf "%q " "${args[@]}")" 1> >(tee "$out_log") 2> >(tee "$err_log" >&2) && r=1
+    if ((${#args[@]} == 1)); then
+        eval "${args[*]}" || r=1
+    else
+        eval "$(printf "%q " "${args[@]}")" || r=1
+    fi
+
     #[[ -s "$out_log" ]] && cat "$out_log" >&1
     #[[ -s "$err_log" ]] && cat "$err_log" >&2
+    exec 1>&8
+    exec 2>&8
+    exec 8>&-
+    exec 9>&-
+
     return $r
 }
 
@@ -520,17 +537,19 @@ export SHOULD_FAIL=0
     local r
     SHOULD=1
     SHOULD_FAIL=1
-    #( trap - ERR; (! eval "$@") ) && { SHOULD=0; SHOULD_FAIL=0; } && return $r_ok
-    ## fix: empty parameters are discarded
+    #exec 9>&2
+    #exec 2> >( echo -n "@should_fail (expected): " >&9; tee >&9)
     if (($#>1)); then
         if (( bts_bash_tr )); then
-            ( trap - ERR; (! eval "${args[@]@Q}") ) && { SHOULD=0; SHOULD_FAIL=0; } && return $r_ok
+            ( trap - ERR; (! eval "${args[*]@Q}") ) && { SHOULD=0; SHOULD_FAIL=0; } && return $r_ok
         else
-            ( trap - ERR; (! eval "$(printf "%q " "${args[@]}")" 2>/dev/null) ) && { SHOULD=0; SHOULD_FAIL=0; } && return $r_ok
+            ( trap - ERR; (! eval "$(printf "%q " "${args[@]}")") ) && { SHOULD=0; SHOULD_FAIL=0; } && return $r_ok
         fi
     else
-        ( trap - ERR; (! eval "${args[@]}" 2>/dev/null) ) && { SHOULD=0; SHOULD_FAIL=0; } && return $r_ok
+        ( trap - ERR; (! eval "${args[*]}") ) && { SHOULD=0; SHOULD_FAIL=0; } && return $r_ok
     fi
+    #exec 2>&9
+    #exec 9>&-
     # shellcheck disable=SC2119
     fail
 }
@@ -541,8 +560,8 @@ has_err=$(
     local NOT=0
     local sf=${f##*/}
     [[ "$1" == NOT || "$1" == not ]] && NOT=1 && shift
-    local _not=$( ((NOT)) && echo ' NOT' )
-    local is_not=$( ((NOT)) && echo 'NOT ' )
+    local _not; _not=$( ((NOT)) && echo ' NOT' )
+    local is_not; is_not=$( ((NOT)) && echo 'NOT ' )
     local a="$1"; shift
     local r
     local a_cap="${a^^}"
@@ -552,8 +571,26 @@ has_err=$(
             ;;
         *) echo "unknown assertion '$a' (${sf}:${FUNCNAME[1]}:${BASH_LINENO[0]})"; return $r_fail;;
     esac
+    ## unquote first! set -- "$@" whould quote again and coming from another call, like @should_fail, would have it quoted twice!
+    #set -- "$( eval "echo $*" )"
     set -- "$@"
-    [[ -z "${@+z}" ]] && echo_c SYNTAX "Missing evaluation!" && exit 1
+    ## quote/no-quote args...
+    #local args; args="$(eval "echo \"$*\"")"
+    local sub_cmd sub_args=""
+    if (( $# == 1 )); then
+        sub_cmd="$1"
+    else
+        sub_cmd="$1"
+        local s_a
+        for ((i=2;i<=$#;++i)); do
+            s_a="${@:$i:1}"
+            # ${s_a@Q} fails sometimes with 'bad substitution' for unknown reason
+            sub_args+="$(printf "%q " "$s_a")"
+        done
+    fi
+    #echo -e "subs: cmd: '$sub_cmd', args: '$sub_args'" >&2
+
+    [[ -z "${*+z}" ]] && echo_c SYNTAX "Missing evaluation!" && exit 1
     local cmp="${1:-}"
     local exp="${2:-}"; [[ ! "${2+x}" == "x" ]] && unset exp
     local cmp_f exp_f
@@ -566,7 +603,7 @@ has_err=$(
                 *)  if [[ "$cmp" =~ ^[\t\ ]*[-]?[0-9]+[\t\ ]*$ ]]; then
                         (( cmp > 0 )) && r=0 || r=1
                     else
-                        cmp="$@"; unset exp; (eval "$@";) && r=0 || r=1
+                        cmp="$*"; unset exp; (eval "${*}";) && r=0 || r=1
                     fi
             esac
             [[ "$a" == FALSE ]] && r=$((!r))
@@ -578,13 +615,16 @@ has_err=$(
                 *)  if [[ "$cmp" =~ ^[\t\ ]*[-]?[0-9]+[\t\ ]*$ ]]; then
                         (( cmp > 0 )) && r=1 || r=0
                     else
-                        cmp="$@"; unset exp; (eval "$@";) && r=0 || r=1
+                        set -x
+                        cmp="$*"; unset exp; (eval "${sub_cmd} ${sub_args}";) && r=0 || r=1
+                        #cmp="$*"; unset exp; (eval "$*";) && r=0 || r=1
+                        set +x
                     fi
             esac
             [[ "$a" == KO ]] && r=$((!r))
             ;;
         EQUALS) [[ "$cmp" == "$exp" ]] && r=0 || r=1;;
-        FILE~|DIR~) local dn="$(dirname "$cmp")"; find "$dn" -maxdepth 1 -regextype "posix-egrep" -iregex "$dn/$(basename "$cmp")" 2>/dev/null| grep -q '.' && r=0 || r=1;;
+        FILE~|DIR~) local dn; dn="$(dirname "$cmp")"; find "$dn" -maxdepth 1 -regextype "posix-egrep" -iregex "$dn/$(basename "$cmp")" 2>/dev/null| grep -q '.' && r=0 || r=1;;
         FILE|DIR)  [[ -e "$cmp" ]] && r=0 || r=1;;
         EXISTS) [[ -n "$cmp" ]] && {
                     ! [[ "$cmp" =~ ^[$] ]] && r=0 || {
@@ -616,24 +656,20 @@ has_err=$(
             [[ -e "${exp:-}" ]] && exp_f="$exp"||:; [[ -e "$cmp" ]] && cmp_f="$cmp"||:;
             cmp_diff=$(bts_diff -u <( awk -F"${sep}" '{print $'${col}'}' <( sort -k${col} ${exp_f:-<(echo -e "$2")} ) ) <( awk -F"${sep}" '{print $'${col}'}' <( sort -k${col} ${cmp_f:-<(echo -e "$1")} ) ) 2>/dev/null) && r=0 || r=1;;
 
-        ERR)
-            if ! [[ -s "${BTS_CAPTURED_ERR:-}" ]]; then
-                [[ -n "$cmp" ]] && r=1 || r=0
-            else
-                if ! (grep -qF "$cmp" "$BTS_CAPTURED_ERR" || grep -qE "$cmp" "$BTS_CAPTURED_ERR"); then
-                    exp="$(cat "$BTS_CAPTURED_ERR")"
-                    r=1
-                else
-                    r=0
-                fi
-            fi
-            ;;
-        LOG)
-            if ! [[ -s "${BTS_CAPTURED_OUT:-}" ]]; then
-                [[ -n "$cmp" ]] && r=1 || r=0
-            else
-                if ! (grep -qF "$cmp" "$BTS_CAPTURED_OUT" || grep -qE "$cmp" "$BTS_CAPTURED_OUT"); then
-                    exp="$(cat "$BTS_CAPTURED_OUT")"
+        LOG|ERR)
+            local logs
+            [[ "$a" == LOG ]] \
+                && read -ra logs <<< "${BTS_CAPTURED_OUT:-} ${BTS_TEST_LOG:-}" \
+                || read -ra logs <<< "${BTS_CAPTURED_ERR:-} ${BTS_TEST_ERR_LOG:-}"
+            local _filled=1
+            for l in "${logs[@]}"; do
+                [[ -s "$l" ]] && _filled=1 && break
+            done
+            if ((_filled)); then
+                ## implementation note: even if one of these files doesn't exist, grep with -q will return 0 if something's found! handy!
+                # this might be a bug, though, not a feature, so some future release may fix it...
+                if ! (grep -qF "$cmp" "${logs[@]}" 2>/dev/null || grep -qE "$cmp" "${logs[@]}" 2>/dev/null); then
+                    exp="$(cat "${logs[@]}")"
                     r=1
                 else
                     r=0
@@ -941,8 +977,13 @@ _get_test_name() {
         __test_name="${__t}"
     else
         __test_name="${__t#*test_}";
+        ## double underscore are converted to colon
         __test_name="${__test_name//__/: }";
         __test_name="${__test_name//_/ }"
+        ## double-double-underscore ____, means : __
+        __test_name="${__test_name//: : /: __}"
+        ## tripple underscore ___ means litteral underscore
+        __test_name="${__test_name//:  /_}"
     fi
 }
 
@@ -1223,6 +1264,13 @@ HANDLERS
             ## special variables, related to current test
             # we use both forms because one may be overwritten by the real function name, for instance if not being prefixed with test_
             echo "export ${test_function##test_}=1; export ${test_function##test_}__test=1" >> "$bts_test_func"
+            echo "export __bts_current_test=\"$test_function\"" >> "$bts_test_func"
+
+            ## export test's variables and reset __bts_test_vars
+            for v in "${!__bts_test_vars[@]}"; do
+                echo "export $v=\"${__bts_test_vars[$v]}\"" >> "$bts_test_func"
+            done
+            __bts_test_vars=()
 
             ## load specific env
             if [[ -f "${__bts_tmp_dir}/.env.bts" ]]; then
@@ -1632,6 +1680,9 @@ _run_class_in_container() {
     fi
     return 0
 }
+
+typeset -x BTS_TEST_LOG=
+typeset -x BTS_TEST_ERR_LOG=
 _run_class() {
     local test_sep='─'
     exec 4>&1 ## standard output
@@ -1663,6 +1714,8 @@ _run_class() {
 
         log_file="${report_dir}/${test_name}.log"
         log_file_err="${report_dir}/${test_name}.err.log"
+        BTS_TEST_LOG="$log_file"
+        BTS_TEST_ERR_LOG="$log_file_err"
         exec 1>>"$log_file"
         exec 2>>"$log_file_err"
 
@@ -1681,6 +1734,9 @@ _run_class() {
             #"$bts_cmd" --raw "$t" || r=$?
             _run_raw "$t" || r=$?
         fi
+        ## clear captured_logs
+        [[ -n "$BTS_CAPTURED_OUT" ]] && { \rm -f "$BTS_CAPTURED_OUT"; unset BTS_CAPTURED_OUT; }
+        [[ -n "$BTS_CAPTURED_ERR" ]] && { \rm -f "$BTS_CAPTURED_ERR"; unset BTS_CAPTURED_ERR; }
         
         _manage_results "$r" "${report_dir}/${test_name}" || r=$?
         ((r)) && class_failure=1
@@ -1832,6 +1888,7 @@ while (($#)); do
         -f|--first-fail) FIRST_FAIL=1;;
         --clean) CLEAN_UP=1;;
         --raw) RAW_RUN=1;;
+        -*) echo "Unknown argument: '$1'"; usage; exit 1;;
         *) ARGS+=( "$1" )
             shift
             continue
