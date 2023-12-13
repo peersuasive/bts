@@ -1,5 +1,6 @@
-results/
+reports/
 .*.sw*
 *~
 local/
 *.old
+.shellcheckrc
