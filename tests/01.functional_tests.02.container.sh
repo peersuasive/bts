@@ -1,6 +1,6 @@
 # vim: ft=sh
 
-@bts_cont --unit-tests
+@bts_cont
 
 test_without_any_preset() {
     return 0

@@ -25,6 +25,7 @@ FIRST_FAIL=0
 PRETTY_NAME=1
 RAW_RUN=0
 CLEAN_UP=0
+NO_CONTAINERS=0
 
 typeset __rnd="$RANDOM"
 typeset -rx __bts_tmp_dir="/tmp/__bts_tmp_dir.__$__rnd"
@@ -76,7 +77,8 @@ Options:
     -D|--DEBUG              debug BTS
     -dd|--extra-debug       enable extra dbg traces (typically, turns 'set -x' on)
     -d|--debug              enable dbg traces
-    --clean              clean everything possible bts might have been produced and exit, that is: containers, temporary files & (current projects, if any) reports
+    --clean                 clean everything possible bts might have been produced and exit, that is: containers, temporary files & (current projects, if any) reports
+    --no-container          disable use of containers
     
 
 Utils (functions):
@@ -223,6 +225,7 @@ WARNING=WARNING
 FATAL=FATAL
 TODO=TODO
 INTERRUPTED=INTERRUPTED
+DISABLED=DISABLED
 MSG_STATUS=
 QUIET=
 SHOW_OUTPUT=
@@ -240,6 +243,7 @@ r_todo=4
 r_cnf=6
 r_break=9
 r_syntax=10
+r_disabled=11
 exp_vars+=( r_ok r_fail r_fatal r_warn r_todo r_break r_syntax)
 
 echo_c() {
@@ -562,7 +566,7 @@ has_err=$(
     local _not; _not=$( ((NOT)) && echo ' NOT' )
     local is_not; is_not=$( ((NOT)) && echo 'NOT ' )
     local a="$1"; shift
-    local r
+    local r=0
     local a_cap="${a^^}"
     case "${a_cap}" in
         OK|TRUE|KO|FALSE|EQUALS|EMPTY|MATCH|SAME|SAME~|EXISTS|FILE~|FILE|DIR|DIR~|SAMECOL|SAMECOL~|ERR|LOG|WARN)
@@ -1340,6 +1344,7 @@ _get_called_tests() {
 
 typeset failed=0
 typeset unimplemented=0
+typeset disabled=0
 typeset missing=0
 _manage_results() {
     local r=0
@@ -1349,6 +1354,11 @@ _manage_results() {
     case "$res" in
         0)
             echo_c OK "$OK" >&4
+            ;;
+        "$r_disabled")
+            echo_c FATAL "$DISABLED" >&4
+            ((++failed))
+            ((++disabled))
             ;;
         "$r_break")
             echo_c FATAL "$INTERRUPTED" >&4
@@ -1393,7 +1403,7 @@ _manage_results() {
     [[ ! -s "$log_base".err.log ]] && \rm -f "$log_base".err.log
     [[ ! -s "$log_base".log ]] && \rm -f "$log_base".log
     ## exit on first failure or pass break status with r=1
-    (( res && FIRST_FAIL )) && echo_e "ARG!!!!!!!!" && exit "$res"
+    (( res && res != "$r_disabled" && FIRST_FAIL )) && echo_e "ARG!!!!!!!!" && exit "$res"
     return $r
 }
 
@@ -1661,6 +1671,24 @@ _run_class_in_container() {
                 local unit_cont=${BTS_UNIT_CONT:-0}
                 local volumes="${BTS_VOLUMES:-}"
                 local r=0
+
+                if (( NO_CONTAINERS )); then
+                    local test_class_name="${test_class##*/}"; test_class_name="${test_class_name%.sh}"
+                    exec 4>&1
+                    exec 5>&1
+                    exec 1>/dev/null
+                    exec 2>/dev/null
+                    echo -ne "${INV}Running test class ${BOLD}${CYAN}${test_class_name}${RST}${in_cont:+ ${BLUEB}[in ${unit_cont:+"(unit) "}container]${RST}}" >&4
+                    ((++global_disabled))
+                    _manage_results "$r_disabled" "no_log"
+                    exec 1>&4
+                    exec 2>&5
+                    exec 4>&-
+                    exec 5>&-
+                    return $r_disabled
+                fi
+
+
                 if ((unit_cont)); then
                     __build_main_image "$test_class"
                 else
@@ -1683,6 +1711,7 @@ _run_class_in_container() {
 typeset -x BTS_TEST_LOG=
 typeset -x BTS_TEST_ERR_LOG=
 _run_class() {
+    local test_class="$1"
     local test_sep='─'
     exec 4>&1 ## standard output
     exec 5>&2 ## error output
@@ -1690,7 +1719,6 @@ _run_class() {
     ((WITHIN_CONT || WITHIN_UNIT_CONT)) && in_cont=1 && shared_cont=1 && unset unit_cont
     ((WITHIN_UNIT_CONT)) && unset shared_cont && unit_cont=1
 
-    local test_class="${ordered_test_classes[$k]}"
     local test_class_name="${test_class##*/}"; test_class_name="${test_class_name%.sh}"
     echo_o "${INV}Running test class ${BOLD}${CYAN}${test_class_name}${RST}${in_cont:+ ${BLUEB}[in ${unit_cont:+"(unit) "}container]${RST}}"
 
@@ -1810,6 +1838,7 @@ _run_batch() {
     local failed=0
     local missing=0
     local unimplemented=0
+    local disabled=0
     local log_file log_file_err
     local ordered_test_classes=()
     while read -r tc; do
@@ -1818,13 +1847,14 @@ _run_batch() {
     local total_classes=${#ordered_test_classes[@]}
     
     local global_failures=0
+    local global_disabled=0
     ## TODO send these to ./report/test/...
     for ((k=0;k<total_classes;++k)); do
         local test_class="${ordered_test_classes[$k]}"
         if (( ! WITHIN_CONT )) && __wants_container "$test_class"; then
             _run_class_in_container "$test_class" || continue
         else
-            _run_class || continue
+            _run_class  "$test_class" || continue
         fi
     done
 
@@ -1834,6 +1864,7 @@ _run_batch() {
         exit 0
     fi
 
+    total_classes=$(( total_classes - global_disabled ))
     ## display global results
     ## just a bit of space
     #echo
@@ -1854,7 +1885,7 @@ _run_batch() {
     status_msg+=" [$( ((global_failures)) && echo -n "$RED" || echo -n "$GREEN" )"
     status_msg+="${total_success}$( ((global_failures)) && echo -n "$RST" )"
     status_msg+="/${total_classes}${RST}]"
-    status_msg+=" ($( ((global_failures)) && echo -ne "${INV}${RED}" )$global_failures failure$( ((global_failures>1)) && echo -n 's' )${RST})"
+    status_msg+=" ($( ((global_failures)) && echo -ne "${INV}${RED}" )$global_failures failure$( ((global_failures>1)) && echo -n 's' )$( ((global_disabled>1)) && echo ", ${YELLOW}$global_disabled disabled${RST}" )${RST})"
     set -e
 
     ((global_failures)) && border_style='-e'
@@ -1888,6 +1919,7 @@ while (($#)); do
         -f|--first-fail) FIRST_FAIL=1;;
         --clean) CLEAN_UP=1;;
         --raw) RAW_RUN=1;;
+        --no-containers) NO_CONTAINERS=1;;
         -*) echo "Unknown argument: '$1'"; usage; exit 1;;
         *) ARGS+=( "$1" )
             shift
