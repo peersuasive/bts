@@ -332,7 +332,7 @@ asset() {
     ((filename_only)) && echo "$a" && return 0
     local unc=cat
     local ext=."${a##*.}"
-    [[ "$ext" == ".gz" ]] && unc=$(which gzcat || which zcat)
+    [[ "$ext" == ".gz" ]] && unc=$(which gzcat 2>/dev/null || which zcat 2>/dev/null) || fatal "Missing requirements: neither gzcat nor zcat were found!"
     [[ "${a}" == ".bz2" ]] && unc=bzcat
 
     if [[ -d "$d" ]]; then
