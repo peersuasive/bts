@@ -249,9 +249,9 @@ exp_vars+=( r_ok r_fail r_fatal r_warn r_todo r_break r_syntax)
 echo_c() {
     local s=$1; shift
     case "$s" in
-        FAILED|FATAL|SYNTAX) echo -e " \u21d2 ${BOLD}${RED}${BLINK}[$@]${RST}";;
-        WARNING|WARN) echo -e " \u21d2 ${RED}${BLINK}[$@]${RST}";;
-        OK) echo -e " \u21d2 ${BOLD}${BLUE}[$@]${RST}";;
+        FAILED|FATAL|SYNTAX) echo -e " \u21d2 ${BOLD}${RED}${BLINK}[$*]${RST}";;
+        WARNING|WARN) echo -e " \u21d2 ${RED}${BLINK}[$*]${RST}";;
+        OK) echo -e " \u21d2 ${BOLD}${BLUE}[$*]${RST}";;
     esac
 }
 echo_out() {
@@ -279,7 +279,7 @@ fatal() {
     return $r_fatal
 }
 todo() {
-    echo -ne "${YELLOW}[$TODO]${*+ ${BOLD}${CYAN}$@}${RST}" >&2
+    echo -ne "${YELLOW}[$TODO]${*+ ${BOLD}${CYAN}$*}${RST}" >&2
     exit $r_todo
 }
 
