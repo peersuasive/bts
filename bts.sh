@@ -1951,7 +1951,7 @@ fi
 ! [[ -d "$TEST_DIR" ]] && echo "Nothing to test" && exit 0
 
 export __BTS_TEST_DIR="$TEST_DIR"
-export PROJECT_ROOT="$( readlink -f "${PROJECT_ROOT:-.}" )"
+export PROJECT_ROOT; PROJECT_ROOT="$( readlink -f "${PROJECT_ROOT:-.}" )"
 
 ## clean up before processing
 if ! (( WITHIN_CONT )) && ! [[ -e /__bts_tmp ]]; then
