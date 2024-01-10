@@ -1599,7 +1599,7 @@ _run_class_tests_in_container() {
     local with_tty=1
     [[ "${CI:-}" == "true" || "${NO_TTY:-}" == 1 ]] && unset with_tty
 
-    # create pandoc repository if missing
+    # create podman repository if missing
     \mkdir -p "$HOME/.local/shared/containers"
 
     local tests_to_call=()
