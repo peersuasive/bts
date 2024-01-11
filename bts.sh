@@ -1931,7 +1931,7 @@ while (($#)); do
 done
 
 ! ((NO_COLORS)) && _set_colors
-set -- "${ARGS[@]}"
+set -- "${ARGS[@]:-}"
 
 ## clean up env and exit
 if (( CLEAN_UP )); then
